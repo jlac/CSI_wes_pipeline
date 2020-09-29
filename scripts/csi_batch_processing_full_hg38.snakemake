@@ -1,0 +1,796 @@
+#################################
+#
+# snakefile for converting CIDR Sequencing data deliveries to non-PII ready for GRIS upload, running QC, and joint genotyping
+#
+# Susan Huse, susan.huse@nih.gov
+# Frederick National Lab
+# April 10, 2019
+#
+# Justin Lack
+# Frederick National Lab
+# December 11, 2019
+#
+#################################
+
+## 
+## Load python modules
+##
+import os
+from os import listdir
+from os.path import join
+import pandas as pd
+import re
+import sys
+from glob import glob
+import datetime
+
+##
+## Set initial global variables
+##
+dir_renamed = os.getcwd()
+dir_rawdata = join(dir_renamed, "rawdata")
+batch_number = re.sub("^.*BATCH","",dir_renamed)
+batch_name = "BATCH" + batch_number
+if int(batch_number) < 10:
+    batch_name0 = "BATCH0" + batch_number
+else:
+    batch_name0 = "BATCH" + batch_number
+    
+#dir_rawvcf = join(dir_rawdata, "MultiSampleVCF", "withGenotypeRefinement")
+#VCF = [f for f in os.listdir(dir_rawvcf) if re.match(r'.*.vcf.gz$', f)][0]
+#VCF = join(dir_rawvcf, VCF)
+fnames = ["cumulative_coverage_counts", "cumulative_coverage_proportions", "gene_summary", "interval_statistics", "interval_summary", "statistics", "summary"]
+
+## Check if these are bams or crams
+if os.path.isdir(os.path.join(dir_rawdata, "CRAM")):
+    seqdir = "CRAM"
+    seqfile = ".cram"
+elif os.path.isdir(os.path.join(dir_rawdata, "BAM")):
+    seqdir = "BAM"
+    seqfile = ".bam"
+else:
+    print("Unable to locate input rawdata BAM or CRAM folder.  Quitting.")
+    sys.exit()
+
+
+## Set variables for rerunning all of the old pedigrees
+last_batch = str(int(batch_number) - 1)
+#dir_peds = "/hpcdata/dir/CIDR_DATA_RENAMED/pedigrees_updated"
+dir_peds = "/data/NCBR/projects/csi_test_batch/pedigrees_updated"
+todays_date = re.sub('-','',str(datetime.datetime.today()).split()[0])
+
+##
+## Read in the masterkey file 
+##
+#print(listdir(os.getcwd()))
+df = pd.read_csv("masterkey_batch"+batch_number + ".txt", header=0, sep='\t')
+df = df.loc[(df['Batch_Received'].isin([batch_name0, ""])) | (df['Batch_Received'].isnull())]
+dict_CIDR = dict(zip(df['Phenotips_ID'].tolist(), df['Exome_ID'].tolist()))
+print(dict_CIDR)
+#exit
+
+configfile:"/hpcdata/dir/CIDR_HG38/pipeline/processing_references_hg38.json"
+
+chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chr20","chr21","chr22","chrX","chrY","chrM"]
+
+##
+## Set rule all
+##
+rule all:
+    input:
+#        fastqc=expand(join("BATCH_QC/FastQC/{newID}.R1_fastqc.html"),newID=list(dict_CIDR.keys())),
+#        flagstats=expand(join("BATCH_QC/Flagstats/{newID}.flagstats"),newID=list(dict_CIDR.keys())),
+#        qualimap=expand(join("BATCH_QC/{newID}", "qualimapReport.html"),newID=list(dict_CIDR.keys())),
+#        vcftools = join("BATCH_QC/", batch_name + ".het"),
+        collectvarintcallmetrics = join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics"),
+#        varianteval=expand(join("BATCH_QC/VariantEval/{newID}"),newID=list(dict_CIDR.keys())),
+#        snpeff= expand(join("BATCH_QC/SNPeff/{newID}/{newID}"),newID=list(dict_CIDR.keys())),
+#        bcftools=expand(join("BATCH_QC/BCFStats/{newID}"),newID=list(dict_CIDR.keys())),
+#        multiqc=join("BATCH_QC/QC_Report.html"),
+        recalbam = expand("BAM/{newID}.recal.bam", newID=list(dict_CIDR.keys())),
+#        bam = expand("BAM/{newID}.bam", newID=list(dict_CIDR.keys())),
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+        vci = join(dir_renamed, "VCF", batch_name + ".vcf.gz.tbi"),
+#        target = expand(join(dir_renamed, "QC", "TARGET", "{newID}.TARGET.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
+#        ucsc = expand(join(dir_renamed, "QC", "UCSC", "{newID}.UCSC.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
+#        last_ped = join(dir_peds, todays_date, "seqr_ped_batch" + last_batch + ".txt"),
+#        hla = expand(join(dir_renamed, "HLA", "{newID}", "hla", "R1_bestguess_G.txt"), newID = list(dict_CIDR.keys())),
+#        concat_hla_cidr = join(dir_renamed, "hla_tab_cidr_batch" + batch_number + ".csv"),
+#        concat_hla_phenotips = join(dir_renamed, "hla_tab_phenotips_batch" + batch_number + ".csv"),
+#        admix_plot = join(dir_renamed, "BATCH_QC", "admixture", "admixture_mqc.png"),
+#        plota = join(dir_renamed, "inbreeding", "Heterozygous_to_Homozygous_Ratio_mqc.png"),
+#        plotb = join(dir_renamed, "inbreeding", "Mean_Homozygous_Tract_Length_mqc.png"),
+#        segs = expand(join(dir_renamed, "CNV_100", "genotyped_segments_{newID}.vcf"), newID = list(dict_CIDR.keys())),
+#        intervals = expand(join(dir_renamed, "CNV_100", "genotyped_intervals_{newID}.vcf"), newID = list(dict_CIDR.keys())),
+#        annot2 = expand(join(dir_renamed, "CNV_100", "{newID}", "{newID}.segments.annotations.tsv"), newID = list(dict_CIDR.keys())),
+#        candidates = expand(join(dir_renamed, "CNV_100", "{newID}", "{newID}.candidate.cnvs"), newID = list(dict_CIDR.keys())),
+#        fixed_cnv = expand(join(dir_renamed, "CNV_100", "{newID}", "{newID}_cnv.txt"), newID = list(dict_CIDR.keys())),
+        final="VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
+
+###
+### Here's where the old QC rules start
+###
+
+rule bam2fastq:
+    input: bam = lambda w: [join(dir_rawdata, seqdir, dict_CIDR[w.newID] + seqfile)],
+    output: r1=temp("fastqs/{newID}.R1.fastq.gz"),
+            r2=temp("fastqs/{newID}.R2.fastq.gz"),
+            orphans=temp("fastqs/{newID}.unpaired.fastq.gz"),
+    params: rname="bam2fastq",genome=config['references']['GENOME']
+    shell: """
+           set +u
+           module load GATK/4.1.6.0-Java-1.8.0_92
+           mkdir -p fastqs
+           gatk SamToFastq --INPUT {input.bam} --FASTQ {output.r1} --SECOND_END_FASTQ {output.r2} --UNPAIRED_FASTQ {output.orphans} -R /hpcdata/dir/CSI_DATA_PROCESSED/references/human_g1k_v37_decoy.fasta
+           """
+
+rule trimmomatic:
+    input:  r1=join("fastqs/{newID}.R1.fastq.gz"),
+            r2=join("fastqs/{newID}.R2.fastq.gz"),
+    output: one=temp("fastqs/{newID}.R1.trimmed.fastq.gz"),
+            two=temp("fastqs/{newID}.R1.trimmed.unpair.fastq.gz"),
+            three=temp("fastqs/{newID}.R2.trimmed.fastq.gz"),
+            four=temp("fastqs/{newID}.R2.trimmed.unpair.fastq.gz"),
+            err="fastqs/{newID}_run_trimmomatic.err"
+    params: adapterfile=config['references']['trimmomatic.adapters'],rname="pl:trimmomatic"
+    threads: 32
+    shell:  """
+            set +u
+            module load trimmomatic/0.36
+            java -jar $EBROOTTRIMMOMATIC/trimmomatic-0.36.jar PE -threads {threads} -phred33 {input[0]} {input[1]} {output.one} {output.two} {output.three} {output.four} ILLUMINACLIP:{params.adapterfile}:3:30:10 LEADING:10 TRAILING:10 SLIDINGWINDOW:4:20 MINLEN:20 2> {output.err}
+            """
+
+rule fastqc_raw:
+    input: "fastqs/{newID}.R1.fastq.gz","fastqs/{newID}.R2.fastq.gz"
+    output: "BATCH_QC/FastQC/{newID}.R1_fastqc.html","BATCH_QC/FastQC/{newID}.R2_fastqc.html"
+    params: adapters=config['references']['fastqc_adapters'], rname="fastqc_raw"
+    threads: 4
+    shell: """
+           set +u
+           mkdir -p BATCH_QC/FastQC
+           module load fastqc/0.11.8-Java-1.8.0_45
+           fastqc -o BATCH_QC/FastQC -f fastq --threads {threads} --contaminants {params.adapters} {input}
+           """
+
+rule fastqc_trimmed:
+    input:  "fastqs/{newID}.R1.trimmed.fastq.gz","fastqs/{newID}.R2.trimmed.fastq.gz"
+    output: "BATCH_QC/FastQC/{newID}.R1.trimmed_fastqc.html","BATCH_QC/FastQC/{newID}.R2.trimmed_fastqc.html"
+    params: adapters=config['references']['fastqc_adapters'],rname="pl:fastqc"
+    threads: 4
+    shell: """
+           set +u
+           mkdir -p BATCH_QC/FastQC
+           module load fastqc/0.11.8-Java-1.8.0_45
+           fastqc -o BATCH_QC/FastQC -f fastq --threads {threads} --contaminants {params.adapters} {input}
+           """
+
+rule bwa_mem:
+    input:  "fastqs/{newID}.R1.trimmed.fastq.gz","fastqs/{newID}.R2.trimmed.fastq.gz"
+    output: temp("BAM/{newID}.foo.bam")
+    params: genome=config['references']['GENOME'],sample = "{newID}",rname="pl:bwamem"
+    shell:  """
+            set +u
+            module load samtools/1.9-goolf-1.7.20
+            module load bwa/0.7.17-goolf-1.7.20
+            bwa mem -M -R \'@RG\\tID:{params.sample}\\tSM:{params.sample}\\tPL:illumina\\tLB:{params.sample}\\tPU:{params.sample}\\tCN:hgsc\\tDS:wes\' -t 12 {params.genome} {input} | /hpcdata/dir/software/samblaster/samblaster -M | samtools sort -@12 -m 4G - -o {output}
+            """
+
+#rule picard_headers:
+#     input:  "BAM/{newID}.foo.bam"
+#     output: temp("BAM/{newID}.header.bam")
+#     params: sample = "{newID}",rname="headers"
+#     shell:  """
+#             module load picard/2.20.8
+#             java -Xmx24g -jar $PICARDJARPATH/picard.jar AddOrReplaceReadGroups I={input} O={output} RGID={params.sample} RGPL=illumina RGLB={params.sample} RGPU={params.sample} RGSM={params.sample} RGCN=cidr RGDS=wes Validation_Stringency=LENIENT
+#             """
+
+#rule novocraft_sort:
+#     input:  "BAM/{newID}.header.bam",
+#     output: temp("BAM/{newID}.sorted.bam")
+#     params: rname="sort"
+#     threads: 8
+#     shell:  """
+#             module load novocraft/3.08.02
+#             novosort -t /scratch -m 94G --threads {threads} -s -i -o {output} {input}
+#             """
+
+#rule picard_markdups:
+#     input:  "BAM/{newID}.sorted.bam"
+#     output: out = temp("BAM/{newID}.dedup.bam"),
+#             metrics = "BAM/{newID}.sorted.txt"
+#     params: rname="mkdup"
+#     shell:  """
+#             module load picard/2.20.8
+#             java -Xmx24g -jar $PICARDJARPATH/picard.jar MarkDuplicates I={input} O={output.out} M={output.metrics} REMOVE_DUPLICATES=FALSE AS=TRUE PG='null' Validation_Stringency=LENIENT
+#             """
+
+#rule gatk_realign:
+#        input:  "BAM/{newID}.dedup.bam"
+#        output: re=temp("BAM/{newID}.realign.bam"),
+#                int="BAM/{newID}.realign.intervals"
+#        params: genome=config['references']['GENOME'],knownindels=config['references']['KNOWNINDELS'],rname="realign"
+#        shell:  """
+#                module load samtools/1.8
+#                samtools index {input}
+#                module load GATK/4.1.6.0
+#                java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T RealignerTargetCreator -I {input} -R {params.genome} --use_jdk_inflater --use_jdk_deflater {params.knownindels} -o {output.int}
+#                java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T IndelRealigner -R {params.genome} -I {input} --use_jdk_inflater --use_jdk_deflater -targetIntervals {output.int} {params.knownindels} -o {output.re}
+#                """
+
+rule gatk_recal:
+      input:  "BAM/{newID}.foo.bam"
+      output: bam="BAM/{newID}.recal.bam",
+              re=temp("BAM/{newID}_recal_data.grp")
+      params: genome=config['references']['GENOME'],knowns=config['references']['KNOWNRECAL'],rname="recal"
+      threads: 24
+      shell:  """
+              set +u
+              module load GATK/4.1.6.0-Java-1.8.0_92
+              gatk --java-options '-Xmx48g' BaseRecalibrator --input {input} --reference {params.genome} {params.knowns} --output {output.re}
+              gatk --java-options '-Xmx48g' ApplyBQSR --reference {params.genome} --input {input} --bqsr-recal-file {output.re} --output {output.bam} --use-jdk-inflater --use-jdk-deflater
+              """
+
+rule qualimap:
+    input: "BAM/{newID}.recal.bam",
+    output: txt = join("BATCH_QC/{newID}","genome_results.txt"), html = join("BATCH_QC/{newID}", "qualimapReport.html")
+    threads:8
+    params: regions=config['references']['REGIONS'], dir = "BATCH_QC/{newID}", rname="qualimap"
+    shell: """
+           set +u
+           module load qualimap/2.2.1-goolf-1.7.20
+           unset DISPLAY
+           qualimap bamqc -bam {input} --java-mem-size=48G -c gd hg19 -ip -outdir {params.dir} -gff {params.regions} -outformat HTML -nt {threads} --skip-duplicated -nw 500 -p NON-STRAND-SPECIFIC
+           """
+
+rule samtools_flagstats:
+    input:bam= "BAM/{newID}.recal.bam",
+    output:join("BATCH_QC/Flagstats/{newID}.flagstats")
+    params: rname="flagstats"
+    shell: """
+           set +u
+           module load samtools/1.8
+           samtools flagstat {input} > {output}
+           """
+
+### Need to fix Rscript below
+
+rule vcftools:
+    input: join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+    output: join("BATCH_QC/", batch_name + ".het"),
+    params: batch=batch_name,rname="vcftools"
+    shell: """
+           set +u
+           module load vcftools/0.1.15-goolf-1.7.20-Perl-5.22.2
+           vcftools --gzvcf {input} --het --out BATCH_QC/{params.batch}
+           """
+
+### Need to fix Rscript below
+
+rule collectvariantcallmetrics:
+    input: join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+    output: join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics")
+    params: vcf=config['references']['DBSNP'],batch=batch_name,rname="varcallmetrics"
+    shell: """
+           set +u
+           module load picard/2.22.7-Java-1.8.0_92
+           java -Xmx24g -jar $EBROOTPICARD/picard.jar CollectVariantCallingMetrics INPUT={input} OUTPUT=BATCH_QC/{params.batch} DBSNP={params.vcf} Validation_Stringency=SILENT
+           """
+
+rule Gatk_SelectVariants:
+	input: join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+	output: temp(join("BATCH_QC/{newID}.vcf.gz"))
+	params: genome=config['references']['GENOME'], Sname = "{newID}", rname="varselect"
+	shell: """
+	       set +u
+	       module load GATK/3.8.1-Java-1.8.0_92
+	       java -Xmx12g $EBROOTGATK/GenomeAnalysisTK.jar SelectVariants -R {params.genome} -o {output} -V {input} --sample_name {params.Sname} --ALLOW_NONOVERLAPPING_COMMAND_LINE_SAMPLES --excludeNonVariants
+	       """
+
+rule bcftools:
+	input: "BATCH_QC/{newID}.vcf.gz"
+  	output: join("BATCH_QC/BCFStats/{newID}")
+  	params: rname="bcfstats"
+  	shell: """
+  	       set +u
+  	       module load bcftools/1.9-goolf-1.7.20
+  	       bcftools stats {input} > {output}
+  	       """
+
+rule varianteval:
+	input: "BATCH_QC/{newID}.vcf.gz"
+	output: join("BATCH_QC/VariantEval/{newID}")
+	params:genome=config['references']['GENOME'],vcf=config['references']['DBSNP'], rname="vareval"
+	threads: 4
+	shell: """
+	       set +u
+	       module load module load GATK/3.8.1-Java-1.8.0_92
+	       java -Xmx12g $EBROOTGATK/GenomeAnalysisTK.jar VariantEval -R {params.genome} -o {output} --dbsnp {params.vcf} --eval {input} -nt {threads}
+	       """
+
+#rule snpeff:
+#	input:  "BATCH_QC/{newID}.vcf.gz"
+#	output: vcf= join("BATCH_QC/SNPeff/{newID}/{newID}_exome.vcf"),
+#	        csv = join("BATCH_QC/SNPeff/{newID}/{newID}"),
+#	        html = join("BATCH_QC/SNPeff/{newID}/{newID}.html")
+#	params: genome=config['references']['SNPEFF_GENOME'],effconfig=config['references']['SNPEFF_CONFIG'], rname="snpeff"
+#	shell: "module load snpEff/4.3t; java -Xmx12g -jar $SNPEFF_JAR -v -canon -c {params.effconfig} -csvstats {output.csv} -stats {output.html} {params.genome} {input} > {output.vcf}"
+
+rule multiqc:
+    input: expand(join("BATCH_QC/VariantEval/{newID}"), newID=list(dict_CIDR.keys())),
+           expand(join("BATCH_QC/{newID}","genome_results.txt"), newID=list(dict_CIDR.keys())),
+           join("VCF", batch_name + ".peddy.html"),
+    output: "BATCH_QC/QC_Report.html"
+    params: patterns=config['references']['PATTERNS'], rname="multiqc"
+    shell: """
+           set +u
+           module load multiqc/1.8
+           multiqc --interactive -c {params.patterns} -f -n {output} --interactive .
+           """
+
+### Here's where the batch processing rules start
+
+###
+### Estimate ethnic admixture
+###
+rule admixture:
+    input: 
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+    output: 
+        filtvcf = temp(join(dir_renamed, "BATCH_QC", "admixture", "filtered.recode.vcf")),
+        mergedvcf = temp(join(dir_renamed, "BATCH_QC", "admixture", "merged.knowns.vcf")),
+        admixtable = join(dir_renamed, "BATCH_QC", "admixture", "admixture_table.tsv"),
+    params: 
+        batch = batch_name, 
+        rname = "admixture",
+        knowns = config['references']['KNOWNANCESTRY'],
+        genome = config['references']['GENOME'],
+    shell: 
+           """
+           set +u
+           mkdir -p BATCH_QC/admixture
+           module load vcftools/0.1.16
+           vcftools --gzvcf {input.vcf} --remove-indels --max-missing 1 --recode --recode-INFO-all --out BATCH_QC/admixture/filtered
+           module purge
+           module load GATK/3.8-1
+           GATK -m 12g CombineVariants -R {params.genome} --genotypemergeoption UNSORTED -o {output.mergedvcf} --variant {output.filtvcf} --variant {params.knowns} --minimumN 2 -nt 4
+           module purge
+           module load plink/1.9.0-beta4.4
+           plink --noweb --recode12 --snps-only --maf 0.05 --out BATCH_QC/admixture/merged.filtered.knowns --vcf {output.mergedvcf}
+           perl /data/NCBR/projects/csi_test_batch/resources/software/admixture_prep.pl /data/NCBR/projects/csi_test_batch/resources/1k_genomes_superpop_key.txt BATCH_QC/admixture/merged.filtered.knowns.pop BATCH_QC/admixture/merged.filtered.knowns.ped
+           /data/CCBR_Pipeliner/db/PipeDB/bin/admixture_linux-1.3.0/admixture BATCH_QC/admixture/merged.filtered.knowns.ped 5 --supervised -j4
+           mv merged.filtered.knowns.5.P BATCH_QC/admixture/merged.filtered.knowns.5.P
+           mv merged.filtered.knowns.5.Q BATCH_QC/admixture/merged.filtered.knowns.5.Q
+           perl /data/NCBR/projects/csi_test_batch/resources/software/admixture_post.pl /data/NCBR/projects/csi_test_batch/resources/1k_genomes_superpop_key.txt {output.admixtable} BATCH_QC/admixture/merged.filtered.knowns.5.Q hg19 BATCH_QC/admixture/merged.filtered.knowns.ped
+           """
+
+###
+### Plot ethnic admixture
+###
+rule admixplot:
+    input: admixtable = join(dir_renamed, "BATCH_QC", "admixture", "admixture_table.tsv"),
+    output: admix_plot = join(dir_renamed, "BATCH_QC", "admixture", "admixture_mqc.png"),
+    params: rname = "admixplot"
+    shell: 
+        """
+        set +u
+        module load R
+        Rscript /data/NCBR/projects/csi_test_batch/resources/software/admixplot.R
+        """
+
+#Need to fix CNV calling for hg38
+
+###
+### CNV Calling
+###
+rule cnv_wes:
+    input: 
+        bam="BAM/{newID}.recal.bam",
+    output: 
+        counts = join(dir_renamed, "CNV_100", "counts", "{newID}.counts.hdf5"),
+        intervals = join(dir_renamed, "CNV_100", "genotyped_intervals_{newID}.vcf"),
+        segments = join(dir_renamed, "CNV_100", "genotyped_segments_{newID}.vcf"),
+    params: 
+        batch = batch_name, 
+        rname = "cnv",
+        regions = config['references']['REGIONS'],
+        sample = "{newID}"
+    shell: 
+        """
+        set +u
+        module load GATK/4.1.2.0
+        mkdir -p CNV_100
+        mkdir -p CNV_100
+        mkdir -p CNV_100/counts
+        mkdir -p CNV_100/ploidy
+        mkdir -p CNV_100/model
+        gatk CollectReadCounts -I {input} -L {params.regions} --interval-merging-rule OVERLAPPING_ONLY -O {output.counts}
+        gatk DetermineGermlineContigPloidy --input {output.counts} --model /data/NCBR/projects/csi_test_batch/resources/gatk_cnv_ploidy_model/CohortMode/CIDR_COHORT-model --output-prefix {params.sample} --output CNV_100/ploidy/{params.sample}
+        mkdir -p CNV_100/model/{params.sample}
+        gatk GermlineCNVCaller --run-mode CASE --contig-ploidy-calls CNV_100/ploidy/{params.sample}/{params.sample}-calls --model /data/NCBR/projects/csi_test_batch/resources/GermlineCNVmodel_100/CIDR_CNVcalls_COHORT_100-model --input {output.counts} --output CNV_100/model/{params.sample} --output-prefix {params.sample}
+        gatk PostprocessGermlineCNVCalls --calls-shard-path CNV_100/model/{params.sample}/{params.sample}-calls --model-shard-path /data/NCBR/projects/csi_test_batch/resources/GermlineCNVmodel_100/CIDR_CNVcalls_COHORT_100-model --contig-ploidy-calls CNV_100/ploidy/{params.sample}/{params.sample}-calls --allosomal-contig X --allosomal-contig Y --output-genotyped-intervals {output.intervals} --output-genotyped-segments {output.segments}
+        """
+
+###
+### CNV Post-processing
+###
+rule cnv_post:
+    input: 
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+        intervals = join(dir_renamed, "CNV_100", "genotyped_intervals_{newID}.vcf"),
+        segments = join(dir_renamed, "CNV_100", "genotyped_segments_{newID}.vcf"),
+    output:
+        reformat2 = temp(join(dir_renamed, "CNV_100", "{newID}", "genotyped_segments_{newID}.reformat.vcf")),
+        varintervals2 = temp(join(dir_renamed, "CNV_100", "{newID}", "genotyped_segments_{newID}.var.vcf")),
+        cols2 = temp(join(dir_renamed, "CNV_100", "{newID}", "{newID}.segments.columns")),
+        bed2 = temp(join(dir_renamed, "CNV_100", "{newID}", "{newID}.segments.bed")),
+        annot2 = join(dir_renamed, "CNV_100", "{newID}", "{newID}.segments.annotations.tsv"),
+    params: 
+        batch = batch_name, 
+        rname = "cnv_post",
+        sample = "{newID}",
+        genome = config['references']['GENOME'],
+    shell: 
+           """
+           set +u
+           module load GATK/3.8-1
+           mkdir -p CNV_100/{params.sample}
+           GATK -m 12g SelectVariants -R {params.genome} -V {input.segments} -L /data/NCBR/projects/csi_test_batch/resources/GRCh37.chroms.bed -o {output.reformat2} -nt 4
+           module load bcftools/1.9
+           bcftools view -q 1 {output.reformat2} > {output.varintervals2}
+           bcftools query -f '%CHROM\t%POS\t%END[\t%CN\t%NP\t%QA\t%QS\t%QSE\t%QSS]\n' {output.varintervals2} > {output.cols2}
+           sed -i '1 i\#Chrom\tStartPosition\tEndPosition\tCopyNumber\tProbes\tQA\tQS\tQSE\tQSS' {output.cols2}
+           perl /data/NCBR/projects/csi_test_batch/resources/software/make_CNV_bed.pl {output.cols2} {output.bed2}
+           module load tcl_tk/8.6.8_gcc-4.8.5
+           export ANNOTSV=/data/NCBR/projects/csi_test_batch/resources/software/AnnotSV_2.2
+           $ANNOTSV/bin/AnnotSV/AnnotSV.tcl -genomeBuild GRCh38 -outputDir CNV_100/{params.sample} -outputFile CNV_100/{params.sample}/{params.sample}.segments.annotations -SVinputFile {output.bed2} -svtBEDcol 5 -vcfFiles {input.vcf} -vcfSamples {params.sample} -bedtools /usr/local/apps/bedtools/2.27.1/bin/bedtools
+           """
+
+###
+###	Collapse CNV Files
+###
+rule filter_cnv:
+	input:
+		annot = join(dir_renamed, "CNV_100", "{newID}", "{newID}.segments.annotations.tsv"),
+	output:
+		candidates = join(dir_renamed, "CNV_100", "{newID}", "{newID}.candidate.cnvs"),
+	params:
+		sample = "{newID}", rname="cnvfilt"
+	shell:
+		"""
+		set +u
+        perl /data/NCBR/projects/csi_test_batch/resources/software/filterCNVs.pl {input.annot} {output.candidates}
+        """
+
+###
+### Identify inbreeding outliers
+###
+rule inbreeding:
+    input: 
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+    output: 
+        knownsvcf = temp(join(dir_renamed, "inbreeding", "known.sites.vcf")),
+        filtvcf = temp(join(dir_renamed, "inbreeding", "filtered.known.sites.recode.vcf.gz")),
+        plota = join(dir_renamed, "inbreeding", "Heterozygous_to_Homozygous_Ratio_mqc.png"),
+        plotb = join(dir_renamed, "inbreeding", "Mean_Homozygous_Tract_Length_mqc.png"),
+    params: 
+        batch = batch_name, 
+        rname = "inbreeding",
+        knowns = config['references']['KNOWNANCESTRY'],
+        genome = config['references']['GENOME'],
+        regions = config['references']['REGIONS'],
+        vcf=config['references']['DBSNP'],
+    shell: 
+           """
+           set +u
+           module load GATK/3.8-1
+           mkdir -p inbreeding
+           GATK -m 12g SelectVariants -R {params.genome} -L {params.regions} -V {input.vcf} -o {output.knownsvcf} --concordance {params.knowns}
+           module purge
+           module load vcftools/0.1.16
+           vcftools --vcf {output.knownsvcf} --remove-indels --min-alleles 2 --max-alleles 2 --max-missing 1 --recode --recode-INFO-all --out inbreeding/filtered.known.sites
+           module purge
+           module load bcftools/1.9
+           bgzip inbreeding/filtered.known.sites.recode.vcf
+           tabix -p vcf inbreeding/filtered.known.sites.recode.vcf.gz
+           module purge
+           module load picard/2.20.8
+           java -Xmx24g -jar $PICARDJARPATH/picard.jar CollectVariantCallingMetrics INPUT=inbreeding/filtered.known.sites.recode.vcf.gz OUTPUT=inbreeding/picardMetrics DBSNP={params.vcf} THREAD_COUNT=8 Validation_Stringency=SILENT
+           module purge
+           module load plink/1.9.0-beta4.4
+           plink --noweb --recode12 --snps-only --out inbreeding/filtered.known.sites --vcf inbreeding/filtered.known.sites.recode.vcf.gz
+           module purge
+           module load plink/1.07
+           plink --file inbreeding/filtered.known.sites --noweb --homozyg --out inbreeding/ROH
+           module purge
+           module load R/3.6
+           Rscript /data/NCBR/projects/csi_test_batch/resources/software/inbreedingPlot.R
+           """
+
+rule haplotypecaller:
+    input: 
+        bam="BAM/{newID}.recal.bam",
+    output:
+        gzvcf = join(dir_renamed, "gVCFs", "{newID}.g.vcf.gz"),
+        index = join(dir_renamed, "gVCFs", "{newID}.g.vcf.gz.tbi"),
+    params: 
+        sample = "{newID}",rname = "hapcaller",genome = config['references']['GENOME'],regions = config['references']['REGIONS'],snpsites=config['references']['DBSNP']
+    shell:
+        """
+        set +u
+        mkdir -p gVCFs
+        module load GATK/4.1.6.0-Java-1.8.0_92
+        gatk --java-options '-Xmx24g' HaplotypeCaller --reference {params.genome} --input {input.bam} --use-jdk-inflater --use-jdk-deflater --emit-ref-confidence GVCF --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --dbsnp {params.snpsites} --output {output.gzvcf} --intervals {params.regions} --max-alternate-alleles 3
+        """
+
+rule listgvcfs:
+    input: 
+        gzvcf = expand(join(dir_renamed, "gVCFs", "{newID}.g.vcf.gz"), newID=list(dict_CIDR.keys())),
+    output:
+        list = "gVCFs/merged/gVCFs.list"
+    params: 
+        rname = "listgvcfs",genome = config['references']['GENOME'],batch=batch_name
+    shell:
+        """
+        set +u
+        ls gVCFs/*.g.vcf.gz > {output.list}
+        """
+
+rule mergegvcfs:
+    input: list = "gVCFs/merged/gVCFs.list",
+    output:
+        gzvcf = "/hpcdata/dir/CIDR_HG38/hg38_gVCFs/" + batch_name + "_merged_{chroms}.g.vcf.gz",
+    params: 
+        rname = "mergegvcfs",genome = config['references']['GENOME'], chr="{chroms}",batch=batch_name
+    shell:
+        """
+        set +u
+        module load GATK/4.1.6.0-Java-1.8.0_92
+        mkdir -p gVCFs/merged
+        gatk --java-options '-Xmx24g' CombineGVCFs --reference {params.genome} --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --variant {input.list} --output {output.gzvcf} --intervals {params.chr} --use-jdk-inflater --use-jdk-deflater
+        """
+
+rule allmergegvcfs:
+    input: gzvcf = "/hpcdata/dir/CIDR_HG38/hg38_gVCFs/" + batch_name + "_merged_{chroms}.g.vcf.gz",
+    output:
+        list = "gVCFs/merged/cumulative_{chroms}.list",
+        gzvcf = "gVCFs/merged/through_" + batch_name + "_merged_{chroms}.g.vcf.gz",
+    params: 
+        rname = "allmerge",genome = config['references']['GENOME'],chr="{chroms}",batch=batch_name
+    shell:
+        """
+        set +u
+        ls /hpcdata/dir/CIDR_HG38/hg38_gVCFs/BATCH*_merged_{params.chr}.g.vcf.gz > {output.list}
+        module load GATK/4.1.6.0-Java-1.8.0_92
+        mkdir -p gVCFs/merged
+        gatk --java-options '-Xmx24g' CombineGVCFs --reference {params.genome} --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --variant {output.list} --output {output.gzvcf} --intervals {params.chr} --use-jdk-inflater --use-jdk-deflater
+        """
+
+rule genotype:
+    input: 
+        gzvcf = "gVCFs/merged/through_" + batch_name + "_merged_{chroms}.g.vcf.gz",
+    output:
+        vcf = "VCF/by_chrom/raw_variants_{chroms}.vcf.gz",
+    params:
+        rname = "genotype",genome = config['references']['GENOME'],snpsites=config['references']['DBSNP'],chr="{chroms}"
+    shell:
+        """
+        set +u
+        mkdir -p VCF/by_chrom
+        module load GATK/4.1.6.0-Java-1.8.0_92
+        gatk --java-options '-Xmx96g' GenotypeGVCFs --reference {params.genome} --use-jdk-inflater --use-jdk-deflater --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --dbsnp {params.snpsites} --output {output.vcf} --variant {input.gzvcf} --intervals {params.chr}
+        """
+
+rule merge_chrom:
+    input:
+        expand("VCF/by_chrom/raw_variants_{chroms}.vcf.gz", chroms=chroms),
+    output:
+        vcf = "VCF/raw_variants.vcf.gz",
+        list = "VCF/by_chrom/raw_variants_byChrom.list",
+    params:
+        rname = "merge_chrom", genome = config['references']['GENOME']
+    shell:
+        """
+        set +u
+        ls -d $PWD/VCF/by_chrom/raw_variants_chr*.vcf.gz > VCF/by_chrom/raw_variants_byChrom.list
+        module load GATK/4.1.6.0-Java-1.8.0_92
+        gatk MergeVcfs --OUTPUT {output.vcf} --INPUT {output.list}
+        """
+
+rule vqsr_snp:
+    input: 
+        vcf = "VCF/raw_variants.vcf.gz",
+    output:
+        recal = "VCF/SNP.output.AS.recal",
+        tranches = "VCF/SNP.output.AS.tranches",
+        rscript = "VCF/SNP.output.plots.AS.R",
+    params: 
+        rname = "vqsr_snp",genome=config['references']['GENOME'],dbsnp=config['references']['DBSNP'],onekg=config['references']['1000GSNP'],hapmap=config['references']['HAPMAP'],omni=config['references']['OMNI']
+    shell:
+        """
+        set +u
+        module load GATK/4.1.6.0-Java-1.8.0_92
+        module load R/3.5.1
+        gatk --java-options '-Xmx24g' VariantRecalibrator --trust-all-polymorphic -tranche 100.0 -tranche 99.95 -tranche 99.9 -tranche 99.8 -tranche 99.6 -tranche 99.5 -tranche 99.4 -tranche 99.3 -tranche 99.0 -tranche 98.0 -tranche 97.0 -tranche 90.0 --max-gaussians 6 --reference {params.genome} --use-jdk-inflater --use-jdk-deflater -AS -V {input.vcf} --resource:hapmap,known=false,training=true,truth=true,prior=15.0 {params.hapmap} --resource:omni,known=false,training=true,truth=false,prior=12.0 {params.omni} --resource:1000G,known=false,training=true,truth=false,prior=10.0 {params.onekg} --resource:dbsnp,known=true,training=false,truth=false,prior=2.0 {params.dbsnp} -an QD -an MQ -an MQRankSum -an ReadPosRankSum -an FS -an SOR -mode SNP -O VCF/SNP.output.AS.recal --tranches-file VCF/SNP.output.AS.tranches --rscript-file VCF/SNP.output.plots.AS.R
+        """
+
+rule vqsr_indel:
+    input: 
+        vcf = "VCF/raw_variants.vcf.gz",
+    output:
+        recal = "VCF/INDEL.output.AS.recal",
+        tranches = "VCF/INDEL.output.AS.tranches",
+        rscript = "VCF/INDEL.output.plots.AS.R",
+    params: 
+        rname = "vqsr_indel",axiom=config['references']['AXIOM'],genome = config['references']['GENOME'],mills=config['references']['MILLS'],dbsnp=config['references']['DBSNP']
+    shell:
+        """
+        set +u
+        module load GATK/4.1.6.0-Java-1.8.0_92
+        module load R/3.5.1
+        gatk --java-options '-Xmx24g' VariantRecalibrator --trust-all-polymorphic -tranche 100.0 -tranche 99.95 -tranche 99.9 -tranche 99.5 -tranche 99.0 -tranche 97.0 -tranche 96.0 -tranche 95.0 -tranche 94.0 -tranche 93.5 -tranche 93.0 -tranche 92.0 -tranche 91.0 -tranche 90.0 --reference {params.genome} --use-jdk-inflater --use-jdk-deflater -AS -V {input.vcf} --resource:mills,known=false,training=true,truth=true,prior=12.0 {params.mills} --resource:axiomPoly,known=false,training=true,truth=false,prior=10 {params.axiom} --resource:dbsnp,known=true,training=false,truth=false,prior=2.0 {params.dbsnp} -an QD -an FS -an SOR -an ReadPosRankSum -an MQRankSum -mode INDEL -O VCF/INDEL.output.AS.recal --tranches-file VCF/INDEL.output.AS.tranches --rscript-file VCF/INDEL.output.plots.AS.R --max-gaussians 4
+        """
+
+rule apply_snp:
+    input: 
+        vcf = "VCF/raw_variants.vcf.gz",
+        recal = "VCF/SNP.output.AS.recal",
+        tranches = "VCF/SNP.output.AS.tranches",
+    output:
+        vcf = "VCF/snps_recal_variants.vcf.gz",
+    params: 
+        rname = "apply_snps",genome = config['references']['GENOME']
+    shell:
+        """
+        set +u
+        module load GATK/4.1.6.0-Java-1.8.0_92
+        gatk --java-options '-Xmx24g' ApplyVQSR --create-output-variant-index true --reference {params.genome} -AS --use-jdk-inflater --use-jdk-deflater -V {input.vcf} -mode SNP --recal-file VCF/SNP.output.AS.recal --tranches-file VCF/SNP.output.AS.tranches --truth-sensitivity-filter-level 99.9 -O {output.vcf}
+        """
+
+rule apply_indel:
+    input: 
+        vcf = "VCF/snps_recal_variants.vcf.gz",
+        recal = "VCF/INDEL.output.AS.recal",
+        tranches = "VCF/INDEL.output.AS.tranches",
+    output:
+        vcf = "VCF/snps_and_indels_recal_variants.vcf.gz",
+    params: 
+        rname = "apply_indels",genome = config['references']['GENOME']
+    shell:
+        """
+        set +u
+        module load GATK/4.1.6.0-Java-1.8.0_92
+        gatk --java-options '-Xmx24g' ApplyVQSR --reference {params.genome} -AS --use-jdk-inflater --use-jdk-deflater -V {input.vcf} -mode INDEL --recal-file VCF/INDEL.output.AS.recal --tranches-file VCF/INDEL.output.AS.tranches --truth-sensitivity-filter-level 99.9 -O {output.vcf}
+        """
+
+rule gtype_refinement:
+    input: 
+        vcf = "VCF/snps_and_indels_recal_variants.vcf.gz",
+    output:
+        vcf = "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
+    params: 
+        rname = "gtype_refinement",genome = config['references']['GENOME'],onekg = config['references']['1000G'],exac=config['references']['EXAC']
+    shell:
+        """
+        set +u
+        module load GATK/4.1.6.0-Java-1.8.0_92
+        gatk --java-options '-Xmx24g' CalculateGenotypePosteriors --reference {params.genome} --use-jdk-inflater --use-jdk-deflater -V {input.vcf} -supporting {params.onekg} -supporting {params.exac} -O {output.vcf}
+        """
+
+###
+### Subset VCF
+###
+###Need to fix this, so it handles ID conversion properly for CIDR samples
+rule vcf:
+    input: 
+        vcf = "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
+    output:
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+        vci = join(dir_renamed, "VCF", batch_name + ".vcf.gz.tbi"),
+        mapa = temp(join(dir_renamed, "vcf_mapping_a.txt")),
+        mapb = temp(join(dir_renamed, "vcf_mapping_b.list")),
+    params:
+        rname = "VCF_rename",
+        key = dir_renamed + "/masterkey_batch" + batch_number + ".txt",
+        genome = config['references']['GENOME'],
+    shell:
+        """
+        set +u
+        module load GATK/4.1.6.0-Java-1.8.0_92
+        module load bcftools/1.9-goolf-1.7.20
+        tail -n +2 {params.key} | awk '{{print $3 "\\t" $2}}' > {output.mapa}
+        cut -f 2 {output.mapa} > {output.mapb}
+        gatk --java-options '-Xmx24g' SelectVariants --reference {params.genome} -V {input.vcf} -O {output.vcf} -sn {output.mapb} --keep-original-ac --exclude-non-variants
+        """
+
+rule peddy:
+    input: 
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+
+    output:
+        html = join("VCF", batch_name + ".peddy.html"),
+    params:
+        rname = "VCF_rename",
+        key = dir_renamed + "/masterkey_batch" + batch_number + ".txt",
+        vcf_notgz = temp(join(dir_renamed, "VCF", batch_name + ".vcf")),
+        batch = batch_name,
+        num=batch_number
+    shell:
+        """
+        set +u
+        module load peddy
+        peddy -p 2 --prefix VCF/{params.batch}.peddy {input.vcf} seqr_ped_batch{params.num}.txt
+        """
+
+###
+### Rename the QC files
+### 
+rule qc:
+    input:    
+        target = lambda w: [join(dir_rawdata, "Gene_Exonic_Cvg_Reports", "TARGET",  dict_CIDR[w.newID] + ".TARGET_BED.sample_{fname}.csv")],
+        ucsc = lambda w: [join(dir_rawdata, "Gene_Exonic_Cvg_Reports", "UCSC", dict_CIDR[w.newID] + ".UCSC_CODING.sample_{fname}.csv")]
+    output: 
+        target = join(dir_renamed, "QC", "TARGET", "{newID}.TARGET.sample_{fname}.csv"),
+        ucsc = join(dir_renamed, "QC", "UCSC", "{newID}.UCSC.sample_{fname}.csv") 
+    params:
+        rname = "QC_rename",
+        oldsearch = lambda w: dict_CIDR[w.newID],
+    shell: 
+        """
+        set +u
+        sed -e 's/{params.oldsearch}/{wildcards.newID}/g' {input.target} > {output.target}
+        sed -e 's/{params.oldsearch}/{wildcards.newID}/g' {input.ucsc} > {output.ucsc}
+        """
+
+###
+### Create new pedigrees_updated directory and refresh all pedigree files
+###
+rule peds:
+    output:
+        last_ped = join(dir_peds, todays_date, "seqr_ped_batch" + last_batch + ".txt")
+    params:
+        rname = "Peds_refresh",
+        dir_peds_today = join(dir_peds, todays_date),
+        last_batch = last_batch
+    shell:
+        """
+        set +u
+        module load python/3.7
+        mkdir -p {params.dir_peds_today}
+        cd {params.dir_peds_today}
+        /data/NCBR/projects/csi_test_batch/resources/software/rerun_old_peds.sh {params.last_batch}
+        """
+
+##
+## Calculate HLA for all BAM files
+##
+rule hla:
+    input: 
+        bam="BAM/{newID}.recal.bam",
+    output: 
+        hla = join(dir_renamed, "HLA", "{newID}", "hla", "R1_bestguess_G.txt"),
+    params: 
+        rname = "hla",
+        hladir = join(dir_renamed, "HLA")
+    shell: 
+        """
+        set +u
+        module load HLA-PRG-LA/1.0.1
+        mkdir -p HLA
+        HLA-LA.pl --BAM {input.bam} --graph PRG_MHC_GRCh38_withIMGT  --sampleID {wildcards.newID} --maxThreads 7 --workingDir {params.hladir}
+        """
+        
+##
+## Concatenate Batch HLA files into one table
+##
+rule hla_concat:
+    output:
+        concat_hla_cidr = join(dir_renamed, "hla_tab_cidr_batch" + batch_number + ".csv"),
+        concat_hla_phenotips = join(dir_renamed, "hla_tab_phenotips_batch" + batch_number + ".csv"),
+    params:
+        rname = "hla",
+        hladir = join(dir_renamed, "HLA")
+    shell:
+        """
+        set +u
+        python /data/NCBR/projects/csi_test_batch/resources/software/hla_table.py
+        """
