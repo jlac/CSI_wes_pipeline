@@ -1,0 +1,496 @@
+#################################
+#
+# snakefile for converting CIDR Sequencing data deliveries to non-PII ready for GRIS upload
+#
+# Susan Huse, susan.huse@nih.gov
+# Frederick National Lab
+# April 10, 2019
+#
+#################################
+
+## 
+## Load python modules
+##
+import os
+from os import listdir
+from os.path import join
+import pandas as pd
+import re
+import sys
+from glob import glob
+import datetime
+
+##
+## Set initial global variables
+##
+dir_renamed = os.getcwd()
+dir_rawdata = join(dir_renamed, "rawdata")
+dir_hla_master = "/sysapps/cluster/software/HLA-LA/1.0/HLA-LA-master"
+batch_number = re.sub("^.*BATCH","",dir_renamed)
+batch_name = "BATCH" + batch_number
+if int(batch_number) < 10:
+    batch_name0 = "BATCH0" + batch_number
+else:
+    batch_name0 = "BATCH" + batch_number
+    
+dir_rawvcf = join(dir_rawdata, "MultiSampleVCF", "withGenotypeRefinement")
+VCF = [f for f in os.listdir(dir_rawvcf) if re.match(r'.*.vcf.gz$', f)][0]
+VCF = join(dir_rawvcf, VCF)
+fnames = ["cumulative_coverage_counts", "cumulative_coverage_proportions", "gene_summary", "interval_statistics", "interval_summary", "statistics", "summary"]
+
+## Check if these are bams or crams
+if os.path.isdir(os.path.join(dir_rawdata, "CRAM")):
+    seqdir = "CRAM"
+    seqfile = "cram"
+elif os.path.isdir(os.path.join(dir_rawdata, "BAM")):
+    seqdir = "BAM"
+    seqfile = "bam"
+else:
+    print("Unable to locate input rawdata BAM or CRAM folder.  Quitting.")
+    sys.exit()
+
+
+## Set variables for rerunning all of the old pedigrees
+last_batch = str(int(batch_number) - 1)
+dir_peds = "/hpcdata/dir/CIDR_DATA_RENAMED/pedigrees_updated"
+todays_date = re.sub('-','',str(datetime.datetime.today()).split()[0])
+
+##
+## Read in the masterkey file 
+##
+#print(listdir(os.getcwd()))
+df = pd.read_csv("masterkey_batch"+batch_number + ".txt", header=0, sep='\t')
+df = df.loc[(df['Batch_Received'].isin([batch_name0, ""])) | (df['Batch_Received'].isnull())]
+
+if 'Exome_ID' in df.columns.tolist():
+	dict_CIDR = dict(zip(df['Phenotips_ID'].tolist(), df['Exome_ID'].tolist()))
+else:
+	dict_CIDR = dict(zip(df['Phenotips_ID'].tolist(), df['CIDR_Exome_ID'].tolist()))
+print(dict_CIDR)
+#exit
+
+configfile:"CSI_wes_pipeline/resources/csi_processing_references.json"
+
+##
+## Set rule all
+##
+rule all:
+    input: 
+        fastqc=expand(join("BATCH_QC/FastQC/{newID}_fastqc.html"),newID=list(dict_CIDR.keys())),
+        flagstats=expand(join("BATCH_QC/Flagstats/{newID}.flagstats"),newID=list(dict_CIDR.keys())),
+        qualimap=expand(join("BATCH_QC/{newID}", "qualimapReport.html"),newID=list(dict_CIDR.keys())),
+        vcftools = join("BATCH_QC/", batch_name + ".het"),
+        collectvarintcallmetrics = join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics"),
+        varianteval=expand(join("BATCH_QC/VariantEval/{newID}"),newID=list(dict_CIDR.keys())),
+        snpeff= expand(join("BATCH_QC/SNPeff/{newID}/{newID}"),newID=list(dict_CIDR.keys())),
+        bcftools=expand(join("BATCH_QC/BCFStats/{newID}"),newID=list(dict_CIDR.keys())),
+        multiqc=join("BATCH_QC/QC_Report.html"),
+        bam = expand(join(dir_renamed, "BAM", "{newID}.bam"), newID=list(dict_CIDR.keys())),
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+        vci = join(dir_renamed, "VCF", batch_name + ".vcf.gz.tbi"),
+        target = expand(join(dir_renamed, "QC", "TARGET", "{newID}.TARGET.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
+        ucsc = expand(join(dir_renamed, "QC", "UCSC", "{newID}.UCSC.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
+        last_ped = join(dir_peds, todays_date, "seqr_ped_batch" + last_batch + ".txt"),
+        hla = expand(join(dir_renamed, "HLA", "{newID}", "hla", "R1_bestguess_G.txt"), newID = list(dict_CIDR.keys())),
+        concat_hla_cidr = join(dir_renamed, "hla_tab_exome_batch" + batch_number + ".csv"),
+        concat_hla_phenotips = join(dir_renamed, "hla_tab_phenotips_batch" + batch_number + ".csv"),
+        admix_plot = join(dir_renamed, "BATCH_QC", "admixture", "admixture_mqc.png"),
+        plota = join(dir_renamed, "inbreeding", "Heterozygous_to_Homozygous_Ratio_mqc.png"),
+        plotb = join(dir_renamed, "inbreeding", "Mean_Homozygous_Tract_Length_mqc.png"),
+        segs = expand(join(dir_renamed, "CNV_100", "gatk", "genotyped_segments_{newID}.vcf"), newID = list(dict_CIDR.keys())),
+        intervals = expand(join(dir_renamed, "CNV_100", "gatk", "genotyped_intervals_{newID}.vcf"), newID = list(dict_CIDR.keys())),
+        annot2 = expand(join(dir_renamed, "CNV_100", "gatk", "{newID}", "{newID}.segments.annotations.tsv"), newID = list(dict_CIDR.keys())),
+#        fixed_cnv = expand(join(dir_renamed, "CNV_100", "gatk", "{newID}", "{newID}_cnv.txt"), newID = list(dict_CIDR.keys())),
+
+###
+### Here's where the old QC rules start
+###
+
+rule fastqc:
+	input: join(dir_renamed, "BAM", "{newID}.bam")
+	output: join("BATCH_QC/FastQC/{newID}_fastqc.html")
+	params: adapters=config['references']['fastqc_adapters']
+	threads: 8
+	shell: """
+	       set +u
+	       mkdir -p BATCH_QC/FastQC
+	       module load fastqc;fastqc -o BATCH_QC/FastQC -f fastq --threads {threads} -f bam --contaminants {params.adapters} {input}
+	       """
+
+rule qualimap:
+ 	input: join(dir_renamed, "BAM", "{newID}.bam")
+	output: txt = join("BATCH_QC/{newID}","genome_results.txt"), html = join("BATCH_QC/{newID}", "qualimapReport.html")
+	threads:8
+  	params:regions=config['references']['REGIONS'], dir = "BATCH_QC/{newID}"
+  	shell: "set +u;module load qualimap;unset DISPLAY; qualimap bamqc -bam {input} --java-mem-size=48G -c gd hg19 -ip -outdir {params.dir} -gff {params.regions} -outformat HTML -nt {threads} --skip-duplicated -nw 500 -p NON-STRAND-SPECIFIC"
+
+rule samtools_flagstats:
+	input:bam= join(dir_renamed, "BAM", "{newID}.bam")
+	output:join("BATCH_QC/Flagstats/{newID}.flagstats")
+	shell: "set +u;module load samtools; samtools flagstat {input} > {output}"
+
+### Need to fix Rscript below
+
+rule vcftools:
+	input: join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+        output: join("BATCH_QC/", batch_name + ".het"),
+        params: batch=batch_name, rname="vcftools"
+        shell:"set +u;module load vcftools/0.1.15-goolf-1.7.20-Perl-5.22.2; vcftools --gzvcf {input} --het --out BATCH_QC/{params.batch}"
+
+### Need to fix Rscript below
+
+rule collectvarintcallmetrics:
+    input: join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+    output: join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics")
+    params:vcf=config['references']['DBSNP'],batch=batch_name, rname="varcallmetrics"
+    shell:"set +u;module load picard;java -Xmx24g -jar $EBROOTPICARD/picard.jar CollectVariantCallingMetrics INPUT={input} OUTPUT=BATCH_QC/{params.batch} DBSNP={params.vcf}"
+
+rule Gatk_SelectVariants:
+	input: join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+	output: temp(join("BATCH_QC/{newID}.vcf.gz"))
+	params:genome=config['references']['GENOME'], Sname = "{newID}"
+	shell:"set +u;module load GATK/3.7-0-Java-1.8.0_92;java -Xmx12g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T SelectVariants -R {params.genome} -o {output} -V {input} --sample_name {params.Sname} --ALLOW_NONOVERLAPPING_COMMAND_LINE_SAMPLES --excludeNonVariants"
+
+rule bcftools:
+	input: "BATCH_QC/{newID}.vcf.gz"
+  	output: join("BATCH_QC/BCFStats/{newID}")
+  	shell: "set +u;module load bcftools/1.4.1-goolf-1.7.20; bcftools stats {input} > {output}"
+
+rule varianteval:
+	input: "BATCH_QC/{newID}.vcf.gz"
+	output: join("BATCH_QC/VariantEval/{newID}")
+	params:genome=config['references']['GENOME'],vcf=config['references']['DBSNP']
+	threads: 4
+	shell:"set +u;module load GATK/3.7-0-Java-1.8.0_92;java -Xmx12g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T VariantEval -R {params.genome} -o {output} --dbsnp {params.vcf} --eval {input} -nt {threads}"
+
+rule snpeff:
+	input:  "BATCH_QC/{newID}.vcf.gz"
+	output: vcf= join("BATCH_QC/SNPeff/{newID}/{newID}_exome.vcf"),
+	        csv = join("BATCH_QC/SNPeff/{newID}/{newID}"),
+	        html = join("BATCH_QC/SNPeff/{newID}/{newID}.html")
+	params:genome=config['references']['SNPEFF_GENOME'],effconfig=config['references']['SNPEFF_CONFIG']
+	shell: "set +u;module load java/1.8.0_92; java -Xmx24g -jar /hpcdata/dir/CIDR_DATA_RENAMED/references/snpEff/snpEff.jar -v -canon -c {params.effconfig} -csvstats {output.csv} -stats {output.html} {params.genome} {input} > {output.vcf}"
+
+rule multiqc:
+ 	input:expand(join("BATCH_QC/FastQC/{newID}_fastqc.html"), newID=list(dict_CIDR.keys())),
+ 		expand(join("BATCH_QC/Flagstats/{newID}.flagstats"), newID=list(dict_CIDR.keys())),
+ 		expand(join("BATCH_QC/{newID}", "qualimapReport.html"), newID=list(dict_CIDR.keys())),
+ 		expand(join("BATCH_QC/VariantEval/{newID}"), newID=list(dict_CIDR.keys())),
+ 		expand(join("BATCH_QC/SNPeff/{newID}/{newID}"), newID=list(dict_CIDR.keys())),
+ 		expand(join("BATCH_QC/BCFStats/{newID}"), newID=list(dict_CIDR.keys())),
+ 		expand(join("BATCH_QC/{newID}","genome_results.txt"), newID=list(dict_CIDR.keys())),
+ 		join("BATCH_QC/", batch_name + ".het"),
+ 		join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics"),
+ 		join(dir_renamed, "BATCH_QC", "admixture", "admixture_mqc.png"),
+ 		join(dir_renamed, "inbreeding", "Heterozygous_to_Homozygous_Ratio_mqc.png"),
+ 		join(dir_renamed, "inbreeding", "Mean_Homozygous_Tract_Length_mqc.png"),
+ 		join("VCF", batch_name + ".peddy.html"),
+ 	output: "BATCH_QC/QC_Report.html"
+	params:patterns=config['references']['PATTERNS']
+ 	shell:"set +u;module load multiqc;multiqc --interactive -c {params.patterns} -f -n {output} --interactive ."
+
+### Here's where the batch processing rules start
+
+###
+### Estimate ethnic admixture
+###
+rule admixture:
+    input: 
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+    output: 
+        filtvcf = temp(join(dir_renamed, "BATCH_QC", "admixture", "filtered.recode.vcf")),
+        mergedvcf = temp(join(dir_renamed, "BATCH_QC", "admixture", "merged.knowns.vcf")),
+        admixtable = join(dir_renamed, "BATCH_QC", "admixture", "admixture_table.tsv"),
+    params: 
+        batch = batch_name, 
+        rname = "admixture"
+    shell: 
+        """set +u
+           export TODAY=`date +"%Y%m%d"`
+           mkdir -p BATCH_QC/admixture
+           module load vcftools/0.1.15-goolf-1.7.20-Perl-5.22.2
+           vcftools --gzvcf {input.vcf} --remove-indels --max-missing 1 --recode --recode-INFO-all --out BATCH_QC/admixture/filtered
+           module purge
+           module load uge
+           module load GATK/3.7-0-Java-1.8.0_92
+           java -Xmx12g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T CombineVariants -R /hpcdata/dir/CIDR_DATA_RENAMED/references/human_g1k_v37_decoy.fasta --genotypemergeoption UNSORTED -o {output.mergedvcf} --variant {output.filtvcf} --variant /hpcdata/dir/software/resources/1k_genomes_phase3_autosomes.vcf.gz --minimumN 2 -nt 4
+           module purge
+           module load uge
+           module load plink/1.90-x86_64-beta
+           plink --noweb --recode12 --snps-only --maf 0.05 --out BATCH_QC/admixture/merged.filtered.knowns --vcf {output.mergedvcf}
+           perl CSI_wes_pipeline/software/admixture_prep.pl CSI_wes_pipeline/resources/1k_genomes_superpop_key.txt BATCH_QC/admixture/merged.filtered.knowns.pop BATCH_QC/admixture/merged.filtered.knowns.ped
+           /hpcdata/dir/software/admixture_linux-1.3.0/admixture BATCH_QC/admixture/merged.filtered.knowns.ped 5 --supervised -j4
+           mv merged.filtered.knowns.5.P BATCH_QC/admixture/merged.filtered.knowns.5.P
+           mv merged.filtered.knowns.5.Q BATCH_QC/admixture/merged.filtered.knowns.5.Q
+           perl CSI_wes_pipeline/software/admixture_post.pl CSI_wes_pipeline/resources/1k_genomes_superpop_key.txt {output.admixtable} BATCH_QC/admixture/merged.filtered.knowns.5.Q hg19 BATCH_QC/admixture/merged.filtered.knowns.ped"""
+
+###
+### Plot ethnic admixture
+###
+rule admixplot:
+    input: admixtable = join(dir_renamed, "BATCH_QC", "admixture", "admixture_table.tsv"),
+    output: admix_plot = join(dir_renamed, "BATCH_QC", "admixture", "admixture_mqc.png"),
+    params: rname = "admixplot"
+    shell: 
+        """
+        set +u
+        export TODAY=`date +"%Y%m%d"`
+        module load R
+        Rscript /hpcdata/dir/software/admixplot.R
+        """
+
+###
+### CNV Calling
+###
+rule cnv_wes:
+    input: 
+        bam = join(dir_renamed, "BAM", "{newID}.bam")
+    output: 
+        segs = join(dir_renamed, "CNV_100", "gatk", "genotyped_segments_{newID}.vcf"),
+        intervals = join(dir_renamed, "CNV_100", "gatk", "genotyped_intervals_{newID}.vcf"),
+    params: 
+        batch = batch_name, 
+        rname = "cnv"
+    shell: 
+        """set +u
+        export TODAY=`date +"%Y%m%d"` 
+        /hpcdata/dir/software/gatk_cnvs_master_100.sh {wildcards.newID}"""
+
+###
+### CNV Post-processing
+###
+rule cnv_post:
+    input: 
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+        intervals = join(dir_renamed, "CNV_100", "gatk", "genotyped_intervals_{newID}.vcf"),
+        segments = join(dir_renamed, "CNV_100", "gatk", "genotyped_segments_{newID}.vcf"),
+    output:
+        reformat2 = join(dir_renamed, "CNV_100", "gatk", "{newID}", "genotyped_segments_{newID}.reformat.vcf"),
+        varintervals2 = join(dir_renamed, "CNV_100", "gatk", "{newID}", "genotyped_segments_{newID}.var.vcf"),
+        cols2 = join(dir_renamed, "CNV_100", "gatk", "{newID}", "{newID}.segments.columns"),
+        bed2 = join(dir_renamed, "CNV_100", "gatk", "{newID}", "{newID}.segments.bed"),
+        annot2 = join(dir_renamed, "CNV_100", "gatk", "{newID}", "{newID}.segments.annotations.tsv"),
+    params: 
+        batch = batch_name, 
+        rname = "cnv_post",
+        sample = "{newID}"
+    shell: 
+        """set +u
+           module load GATK/3.7-0-Java-1.8.0_92           
+           mkdir -p CNV_100/gatk/{params.sample}
+           java -Xmx12g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T SelectVariants -R /hpcdata/dir/CIDR_DATA_RENAMED/references/human_g1k_v37_decoy.fasta -V {input.segments} -L /hpcdata/dir/software/resources/GRCh37.chroms.bed -o {output.reformat2} -nt 4
+           module purge
+           module load uge/8.6.6
+           module load bcftools
+           bcftools view -q 1 {output.reformat2} > {output.varintervals2}
+           bcftools query -f '%CHROM\t%POS\t%END[\t%CN\t%NP\t%QA\t%QS\t%QSE\t%QSS]\n' {output.varintervals2} > {output.cols2}
+           sed -i '1 i\#Chrom\tStartPosition\tEndPosition\tCopyNumber\tProbes\tQA\tQS\tQSE\tQSS' {output.cols2}
+           perl /hpcdata/dir/software/make_CNV_bed.pl {output.cols2} {output.bed2}
+           export ANNOTSV=/hpcdata/dir/software/AnnotSV_2.1
+           $ANNOTSV/bin/AnnotSV -genomeBuild GRCh37 -outputDir CNV_100/gatk/{params.sample} -outputFile CNV_100/gatk/{params.sample}/{params.sample}.segments.annotations -SVinputFile {output.bed2} -svtBEDcol 5 -vcfFiles {input.vcf} -vcfSamples {params.sample} -bedtools /sysapps/cluster/software/BEDTools/2.27.1/bedtools
+           """
+
+###
+###	Collapse CNV Files
+###
+rule fix_cnv:
+	input:
+		candidates = join(dir_renamed, "CNV_100", "gatk", "{newID}", "{newID}.candidate.cnvs"),
+	output:
+		fixed_cnv = join(dir_renamed, "CNV_100", "gatk", "{newID}", "{newID}_cnv.txt"),
+	params:
+		sample = "{newID}",
+	shell:
+		"""
+		set +u
+		module load anaconda3/5.3.0
+		python /CSI_wes_pipeline/cnv_collapse_ucsc.py -i {input.candidates} -o CNV_100/gatk/{params.sample}
+		"""
+
+###
+### Identify inbreeding outliers
+###
+rule inbreeding:
+    input: 
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+    output: 
+        knownsvcf = temp(join(dir_renamed, "inbreeding", "known.sites.vcf")),
+        filtvcf = temp(join(dir_renamed, "inbreeding", "filtered.known.sites.recode.vcf.gz")),
+        plota = join(dir_renamed, "inbreeding", "Heterozygous_to_Homozygous_Ratio_mqc.png"),
+        plotb = join(dir_renamed, "inbreeding", "Mean_Homozygous_Tract_Length_mqc.png"),
+    params: 
+        batch = batch_name, 
+        rname = "inbreeding"
+    shell: 
+        """
+        set +u
+        module load GATK/3.8.1-Java-1.8.0_92
+        mkdir -p inbreeding
+        java -Djava.io.tmpdir=inbreeding/tmp -jar $EBROOTGATK/GenomeAnalysisTK.jar -T SelectVariants -R /hpcdata/dir/CIDR_DATA_RENAMED/references/human_g1k_v37_decoy.fasta -L /hpcdata/dir/CIDR_DATA_RENAMED/references/exome_targets.bed -V {input.vcf} -o {output.knownsvcf} --concordance /hpcdata/dir/software/resources/1k_genomes_phase3_autosomes.vcf.gz
+        module purge
+        module load uge
+        module load vcftools/0.1.15-goolf-1.7.20-Perl-5.22.2
+        vcftools --vcf {output.knownsvcf} --remove-indels --min-alleles 2 --max-alleles 2 --max-missing 1 --recode --recode-INFO-all --out inbreeding/filtered.known.sites
+        module purge
+        module load uge
+        module load tabix
+        bgzip inbreeding/filtered.known.sites.recode.vcf
+        tabix -p vcf inbreeding/filtered.known.sites.recode.vcf.gz
+        module purge
+        module load uge
+        module load picard/2.17.6
+        java -jar /sysapps/cluster/software/picard/2.17.6/picard.jar CollectVariantCallingMetrics INPUT=inbreeding/filtered.known.sites.recode.vcf.gz OUTPUT=inbreeding/picardMetrics DBSNP=/hpcdata/dir/software/resources/00-All.vcf.gz THREAD_COUNT=8
+        module purge
+        module load uge
+        module load plink/1.90-x86_64-beta
+        plink --noweb --recode12 --snps-only --out inbreeding/filtered.known.sites --vcf inbreeding/filtered.known.sites.recode.vcf.gz
+        module purge
+        module load uge
+        /hpcdata/dir/software/plink-1.07-x86_64/plink --file inbreeding/filtered.known.sites --noweb --homozyg --out inbreeding/ROH
+        module purge
+        module load uge
+        module load R
+        Rscript CSI_wes_pipeline/scripts/inbreedingPlot.R
+        """
+
+##
+## Rename the cram files using gatk and a sample mapping file and convert to bam
+##
+rule bams:
+    input: 
+        bam = lambda w: expand(join(dir_rawdata, seqdir, "{oldID}." + seqfile), oldID = dict_CIDR[w.newID])
+    output:
+        bam = join(dir_renamed, "BAM", "{newID}.bam") 
+    params: 
+        rname = "BAMS_rename",
+        oldsearch = lambda w: dict_CIDR[w.newID]
+    shell:
+        """set +u
+        export TODAY=`date +"%Y%m%d"`
+        module load samtools
+        samtools view -H {input.bam} | sed -e 's/{params.oldsearch}/{wildcards.newID}/g' > {output.bam}.sam
+        samtools view -b -o {output.bam}.tmp {input.bam}
+        samtools reheader {output.bam}.sam {output.bam}.tmp  > {output.bam}
+        rm {output.bam}.sam {output.bam}.tmp
+        samtools index {output.bam}"""
+
+###
+### Rename the VCF file
+###
+### SUE: need to create one full vcf with tbi, and one batch specific vcf
+rule vcf:
+    input: 
+        vcf = VCF
+
+    output:
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+        vci = join(dir_renamed, "VCF", batch_name + ".vcf.gz.tbi"),
+        mapa = temp(join(dir_renamed, "vcf_mapping_a.txt")),
+        mapb = temp(join(dir_renamed, "samples.args")),
+        first = temp(join(dir_renamed, "VCF", "first.vcf.gz")),
+
+    params:
+        rname = "VCF_rename",
+        key = dir_renamed + "/masterkey_batch" + batch_number + ".txt",
+        vcf_notgz = temp(join(dir_renamed, "VCF", batch_name + ".vcf")),
+
+    shell:
+        """set +u
+        export TODAY=`date +"%Y%m%d"`
+        module load gatk/4.1.6.0-Java-1.8.0_92
+        module load bcftools/1.9-goolf-1.7.20
+        tail -n +2 {params.key} | awk '{{print $3 "\\t" $2}}' > {output.mapa}
+        cut -f 1 {output.mapa} > {output.mapb}
+        gatk --java-options '-Xmx24g' SelectVariants --reference /hpcdata/dir/CIDR_DATA_RENAMED/references/human_g1k_v37_decoy.fasta -V {input.vcf} -O {output.first} -sn {output.mapb} --keep-original-ac --exclude-non-variants
+        bcftools reheader -s {output.mapa} -o {params.vcf_notgz} {output.first}
+        bgzip {params.vcf_notgz}
+        tabix -p vcf {output.vcf}"""
+###
+### Rename the QC files
+### 
+rule qc:
+    input:    
+        target = lambda w: [join(dir_rawdata, "Gene_Exonic_Cvg_Reports", "TARGET",  dict_CIDR[w.newID] + ".TARGET_BED.sample_{fname}.csv")],
+        ucsc = lambda w: [join(dir_rawdata, "Gene_Exonic_Cvg_Reports", "UCSC", dict_CIDR[w.newID] + ".UCSC_CODING.sample_{fname}.csv")]
+    output: 
+        target = join(dir_renamed, "QC", "TARGET", "{newID}.TARGET.sample_{fname}.csv"),
+        ucsc = join(dir_renamed, "QC", "UCSC", "{newID}.UCSC.sample_{fname}.csv") 
+    params:
+        rname = "QC_rename",
+        oldsearch = lambda w: dict_CIDR[w.newID],
+    shell: 
+        """set +u
+        export TODAY=`date +"%Y%m%d"`
+        sed -e 's/{params.oldsearch}/{wildcards.newID}/g' {input.target} > {output.target}
+        sed -e 's/{params.oldsearch}/{wildcards.newID}/g' {input.ucsc} > {output.ucsc}"""
+
+###
+### Create new pedigrees_updated directory and refresh all pedigree files
+###
+rule peds:
+    output:
+        # should create a list of ped files, but will die if any fail, so only need to test for last
+        last_ped = join(dir_peds, todays_date, "seqr_ped_batch" + last_batch + ".txt")
+    params:
+        rname = "Peds_refresh",
+        dir_peds_today = join(dir_peds, todays_date),
+        last_batch = last_batch
+    shell:
+        """
+        set +u
+        export TODAY=`date +"%Y%m%d"`
+        module load python/3.7.3-foss-2016b
+        mkdir -p {params.dir_peds_today}
+        cd {params.dir_peds_today}
+        CSI_wes_pipeline/scripts/rerun_peds.sh {params.last_batch}
+        """
+
+rule peddy:
+    input: 
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+
+    output:
+        html = join("VCF", batch_name + ".peddy.html"),
+    params:
+        rname = "VCF_rename",
+        key = dir_renamed + "/masterkey_batch" + batch_number + ".txt",
+        vcf_notgz = temp(join(dir_renamed, "VCF", batch_name + ".vcf")),
+        batch = batch_name,
+        num=batch_number
+    shell:
+        """
+        module load peddy
+        peddy -p 2 --prefix VCF/{params.batch}.peddy {input.vcf} seqr_ped_batch{params.num}.txt
+        """
+
+##
+## Calculate HLA for all BAM files
+##
+rule hla:
+    input: 
+        bam = join(dir_renamed, "BAM", "{newID}.bam"),
+    output: 
+        hla = join(dir_renamed, "HLA", "{newID}", "hla", "R1_bestguess_G.txt"),
+    params: 
+        rname = "hla",
+        hladir = join(dir_renamed, "HLA")
+    shell: 
+        """set +u
+        export TODAY=`date +"%Y%m%d"`
+        module load HLA-LA
+        module load samtools
+        mkdir -p HLA
+        cd {dir_hla_master}
+        ./HLA-LA.pl --BAM {input.bam} --graph ../../../../../../hpcdata/dir/CIDR_DATA_RENAMED/references/graphs/PRG_MHC_GRCh38_withIMGT  --sampleID {wildcards.newID} --maxThreads 7 --picard_sam2fastq_bin /sysapps/cluster/software/picardtools/1.119/SamToFastq.jar --workingDir {params.hladir}"""
+        
+##
+## Concatenate Batch HLA files into one table
+##
+rule hla_concat:
+	output:
+		concat_hla_cidr = join(dir_renamed, "hla_tab_exome_batch" + batch_number + ".csv"),
+		concat_hla_phenotips = join(dir_renamed, "hla_tab_phenotips_batch" + batch_number + ".csv"),
+	shell:
+		"""set +u
+		module load python/3.7.3-foss-2016b
+		python /hpcdata/dir/SCRIPTS/hla_table.py"""
