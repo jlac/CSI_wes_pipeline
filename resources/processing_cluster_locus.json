@@ -1,0 +1,89 @@
+{
+      "__default__": {
+              "partition": "avx2",
+              "threads":"4",
+              "mem": "32G",
+              "vmem":"8G"
+      },
+
+      "bam": {
+              "threads": "2"
+      },
+
+      "qc": {
+              "threads": "2",
+              "partition": "quick",
+      },
+
+      "ped": {
+              "threads": "2",
+              "partition": "quick",
+      },
+
+      "inbreeding": {
+              "threads": "8",
+              "partition": "avx2"
+      },
+
+      "cnv_post": {
+              "threads": "8",
+              "partition": "quick"
+      },
+      "hla": {
+              "threads": "8",
+              "partition": "avx2"
+      },
+      "hla_concat": {
+              "threads": "2",
+              "partition": "quick",
+      },
+      "qualimap": {
+              "threads": "8",
+              "mem": "64G",
+              "vmem": "8G"
+     },
+      "merge_chrom": {
+              "threads": "2",
+              "mem": "72G",
+              "vmem": "32G"
+     },
+      "apply_snp": {
+              "threads": "2",
+              "mem": "72G",
+              "vmem": "32G"
+     },
+      "apply_indel": {
+              "threads": "2",
+              "mem": "72G",
+              "vmem": "32G"
+     },
+      "gtype_refinement": {
+              "threads": "2",
+              "mem": "72G",
+              "vmem": "32G"
+     },
+      "bwa_mem": {
+              "threads": "12",
+              "mem": "96G",
+              "vmem": "8G"
+     },
+     "varianteval":{
+              "threads":"4",
+              "mem":"32G",
+              "vmem": "8G"
+     },
+     "fastqc":{
+              "threads":"8",
+              "mem":"32G",
+              "vmem":"4G"
+     },
+     "Gatk_SelectVariants":{
+              "threads":"2",
+              "mem":"24G",
+              "vmem":"12G"
+     },
+     "SNPeff":{
+              "mem":"24G",
+              "vmem":"12G"
+     }
+}

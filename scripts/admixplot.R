@@ -1,0 +1,7 @@
+admixture <- read.table("BATCH_QC/admixture/admixture_table.tsv",header = TRUE,row.names = 1)
+admix2 <- as.matrix(admixture)
+admix2<-t(admix2)
+png('BATCH_QC/admixture/admixture_mqc.png',width = 1000)
+par(mar=c(3, 1, 1, 1))
+barplot(admix2,legend.text=TRUE,args.legend = list(x = "top", bty = "n",ncol=5),las=2,cex.names = 0.5,main = "Admixture",axis.lty=25,col = c("red","blue","green","yellow","pink"),ylim=c(0,1.1),axes=FALSE)
+dev.off()

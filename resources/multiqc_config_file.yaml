@@ -1,0 +1,13 @@
+# Overwrite module filename search patterns. See multiqc/utils/search_patterns.yaml
+# for the defaults. Remove a default by setting it to null.
+
+sp:
+    snpeff:
+        contents: 'SnpEff_version'
+        max_filesize: 10000000
+qualimap_config:
+    general_stats_coverage:
+        - 10
+        - 20
+        - 30
+        - 50
