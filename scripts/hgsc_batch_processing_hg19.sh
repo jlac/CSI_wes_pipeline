@@ -111,5 +111,5 @@ fi
 
 if [ "$2" == "process" ]
 then
-    snakemake --stats snakemake.stats --restart-times 1 --rerun-incomplete -j 150 --cluster "$CLUSTER_OPTS" --cluster-config scripts/processing_cluster.json --keep-going --snakefile scripts/hgsc_batch_processing_hg19.snakemake 2>&1|tee -a csi_batch_processing.log
+    snakemake --stats snakemake.stats --restart-times 1 --rerun-incomplete -j 150 --cluster "$CLUSTER_OPTS" --cluster-config CSI_wes_pipeline/resources/processing_cluster.json --keep-going --snakefile CSI_wes_pipeline/scripts/hgsc_batch_processing_hg19.snakemake 2>&1|tee -a csi_batch_processing.log
 fi

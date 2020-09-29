@@ -71,7 +71,7 @@ dict_CIDR = dict(zip(df['Phenotips_ID'].tolist(), df['Exome_ID'].tolist()))
 print(dict_CIDR)
 #exit
 
-configfile:"pipeline/processing_references_hg19_locus.json"
+configfile:"CSI_wes_pipeline/processing_references_hg19_locus.json"
 
 ##
 ## Set rule all
@@ -255,11 +255,11 @@ rule admixture:
            module purge
            module load plink/1.90-x86_64-beta
            plink --noweb --recode12 --snps-only --maf 0.05 --out BATCH_QC/admixture/merged.filtered.knowns --vcf {output.mergedvcf}
-           perl pipeline/scripts/admixture_prep.pl pipeline/resources/1k_genomes_superpop_key.txt BATCH_QC/admixture/merged.filtered.knowns.pop BATCH_QC/admixture/merged.filtered.knowns.ped
+           perl CSI_wes_pipeline/scripts/admixture_prep.pl CSI_wes_pipeline/resources/1k_genomes_superpop_key.txt BATCH_QC/admixture/merged.filtered.knowns.pop BATCH_QC/admixture/merged.filtered.knowns.ped
            /hpcdata/dir/software/admixture_linux-1.3.0/admixture BATCH_QC/admixture/merged.filtered.knowns.ped 5 --supervised -j4
            mv merged.filtered.knowns.5.P BATCH_QC/admixture/merged.filtered.knowns.5.P
            mv merged.filtered.knowns.5.Q BATCH_QC/admixture/merged.filtered.knowns.5.Q
-           perl pipeline/scripts/admixture_post.pl pipeline/resources/1k_genomes_superpop_key.txt {output.admixtable} BATCH_QC/admixture/merged.filtered.knowns.5.Q hg19 BATCH_QC/admixture/merged.filtered.knowns.ped
+           perl CSI_wes_pipeline/scripts/admixture_post.pl CSI_wes_pipeline/resources/1k_genomes_superpop_key.txt {output.admixtable} BATCH_QC/admixture/merged.filtered.knowns.5.Q hg19 BATCH_QC/admixture/merged.filtered.knowns.ped
            """
 
 ###
@@ -272,7 +272,7 @@ rule admixplot:
     shell: 
         """
         module load R
-        Rscript pipeline/scripts/admixplot.R
+        Rscript CSI_wes_pipeline/scripts/admixplot.R
         """
 
 ###
@@ -592,9 +592,9 @@ rule vcf:
     shell:
         """
         set +u
-        perl pipeline/scripts/make_sample_list.pl masterkey_BATCH{params.batch}.txt BATCH{params.batch}_samples.args BATCH{params.batch}_reheader.txt
-        perl pipeline/scripts/make_sample_list.pl masterkey_BATCH{params.next}.txt BATCH{params.next}_samples.args BATCH{params.next}_reheader.txt
-        perl pipeline/scripts/make_sample_list.pl masterkey.txt all_samples.args all_reheader.txt
+        perl CSI_wes_pipeline/scripts/make_sample_list.pl masterkey_BATCH{params.batch}.txt BATCH{params.batch}_samples.args BATCH{params.batch}_reheader.txt
+        perl CSI_wes_pipeline/scripts/make_sample_list.pl masterkey_BATCH{params.next}.txt BATCH{params.next}_samples.args BATCH{params.next}_reheader.txt
+        perl CSI_wes_pipeline/scripts/make_sample_list.pl masterkey.txt all_samples.args all_reheader.txt
         module load gatk/4.1.6.0-Java-1.8.0_92
         gatk --java-options '-Xmx24g' SelectVariants --reference {params.genome} -V {input.vcf} -O {output.vcfall} -sn all_samples.args --keep-original-ac --exclude-non-variants
         gatk --java-options '-Xmx24g' SelectVariants --reference {params.genome} -V {input.vcf} -O {output.vcfa} -sn BATCH{params.batch}_samples.args --keep-original-ac --exclude-non-variants
@@ -642,7 +642,7 @@ rule peds:
         module load python/3.7
         mkdir -p {params.dir_peds_today}
         cd {params.dir_peds_today}
-        pipeline/scripts/rerun_old_peds.sh {params.last_batch}
+        CSI_wes_pipeline/scripts/rerun_old_peds.sh {params.last_batch}
         """
 
 ##
