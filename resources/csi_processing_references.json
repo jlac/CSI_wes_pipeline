@@ -1,0 +1,11 @@
+{
+    "references": {
+        "fastqc_adapters": "/hpcdata/dir/CIDR_DATA_RENAMED/references/fastqc.adapters",
+        "REGIONS": "/hpcdata/dir/CIDR_DATA_RENAMED/references/exome_targets.bed",
+        "SNPEFF_GENOME": "GRCh37.75",
+        "SNPEFF_CONFIG": "/hpcdata/dir/CIDR_DATA_RENAMED/references/snpEff/snpEff.config",
+        "GENOME": "/hpcdata/dir/CIDR_DATA_RENAMED/references/human_g1k_v37_decoy.fasta",
+        "DBSNP": "/hpcdata/dir/CIDR_DATA_RENAMED/references/dbsnp_138.b37.vcf",
+        "PATTERNS":"/hpcdata/dir/CIDR_DATA_RENAMED/references/multiqc_config_file.yaml"
+    }
+}
