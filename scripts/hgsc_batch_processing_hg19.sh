@@ -86,7 +86,7 @@ echo $SCRIPTPATH
 if [ "$2" == "gris" ] 
 then
     echo "Running csi_to_gris"
-    python3 "$SCRIPTPATH/"csi_to_gris_hgsc.py -b $batchnumber -d $raw_dir -s $raw_dir/sample_key.xlsx
+    python3 CSI_wes_pipeline/scripts/csi_to_gris_hgsc.py -b $batchnumber -d $raw_dir -s $raw_dir/sample_key.xlsx
     exit
 fi
 
@@ -98,11 +98,7 @@ mkdir -p BATCH_QC
 ##
 echo "Run snakemake"
 
-#CLUSTER_OPTS="qsub -e snakejobs -o snakejobs -wd $batchdir"
-CLUSTER_OPTS="sbatch --gres {cluster.gres} --cpus-per-task {cluster.threads} -p {cluster.partition} -t {cluster.time} --mem {cluster.mem} --job-name={params.rname} -e snakejobs/slurm-%j_{params.rname}.out -o snakejobs/slurm-%j_{params.rname}.out --chdir=$batchdir"
-#CLUSTER_OPTS="qsub -e snakejobs -o snakejobs -pe threaded {cluster.threads} -l {cluster.partition} -l h_vmem={cluster.vmem} -l mem_free={cluster.mem} -wd $batchdir"
-#CLUSTER_OPTS="qsub -e snakejobs -o snakejobs -pe threaded {cluster.threads} -l {cluster.partition} -cwd"
-#CLUSTER_OPTS_HIMEM="qsub -e snakejobs_himem -o snakejobs_himem -pe threaded 8 -l himem -l h_vmem=32G -l virtual_free=32G -wd $batchdir"
+CLUSTER_OPTS="qsub -e snakejobs -o snakejobs -pe threaded {cluster.threads} -l {cluster.partition} -l h_vmem={cluster.vmem} -l mem_free={cluster.mem} -wd $batchdir"
 
 if [ "$2" == "npr" ]
 then
@@ -111,5 +107,5 @@ fi
 
 if [ "$2" == "process" ]
 then
-    snakemake --stats snakemake.stats --restart-times 1 --rerun-incomplete -j 150 --cluster "$CLUSTER_OPTS" --cluster-config CSI_wes_pipeline/resources/processing_cluster.json --keep-going --snakefile CSI_wes_pipeline/scripts/hgsc_batch_processing_hg19.snakemake 2>&1|tee -a csi_batch_processing.log
+    snakemake --stats snakemake.stats --restart-times 1 --rerun-incomplete -j 150 --cluster "$CLUSTER_OPTS" --cluster-config CSI_wes_pipeline/resources/processing_cluster_locus.json --keep-going --snakefile CSI_wes_pipeline/scripts/hgsc_batch_processing_hg19.snakemake 2>&1|tee -a csi_batch_processing.log
 fi
