@@ -174,9 +174,9 @@ def write_bam_link_script(masterkey, batch_num):
         phen_id = previous_batches.loc[i]['Phenotips_ID']
 
         bamlink = "ln -s {}/{}/BAM/{}.bam {}/{}/BAM/\n".format(locus_dir, pbatchdir, phen_id, locus_dir,
-                                                               'BATCH' + str(batch))
+                                                               'BATCH' + str(batch_num))
         bailink = "ln -s {}/{}/BAM/{}.bam.bai {}/{}/BAM/\n".format(locus_dir, pbatchdir, phen_id, locus_dir,
-                                                                   'BATCH' + str(batch))
+                                                                   'BATCH' + str(batch_num))
         script.write(bamlink)
         script.write(bailink)
         script.write("\n")
@@ -305,7 +305,7 @@ def write_masterkey(sample_key_path):
     # Clean up BSI data
     received_and_fam = received_and_fam[~received_and_fam['CRIS_Order_Status'].str.contains('cancel', case = False, na = False)]
     received_and_fam = received_and_fam[~received_and_fam['CRIS_Order_Status'].str.match('auto complete', case = False, na = False)]
-    inactive = received_and_fam[~received_and_fam['Active status'].str.match('Active')]
+    inactive = received_and_fam[~received_and_fam['Active status'].str.match('Active', case = False, na = False)]
 
     received_and_fam.drop_duplicates(keep = 'first', inplace = True)
     received_and_fam.replace('', np.NaN, inplace = True)
@@ -325,7 +325,7 @@ def write_masterkey(sample_key_path):
     received.rename(columns = {'Sample_ID': 'Exome_ID'}, inplace = True)
     received['Batch_Received'] = "BATCH" + str(batch)
 
-    received_and_fam = received_and_fam[received_and_fam['Active status'].str.match('Active')]
+    received_and_fam = received_and_fam[received_and_fam['Active status'].str.match('Active', case = False, na = False)]
     received_and_fam.drop_duplicates(keep='first', inplace=True)
 
     # Get sequenced family members
@@ -360,18 +360,17 @@ def write_bsi_info(first_half, second_half):
 
     # Isolate only the new samples
     bsi_first = first_half[first_half['Batch_Received'].str.match('BATCH' + str(batch), na = False)]
-    bsi_second = second_half[second_half['Batch_Received'].str.match('BATCH' + str(batch + 1), na = False)]
-
     bsi_first = bsi_first[['Phenotips_ID', 'Exome_ID', 'Batch_Received', 'CRIS_Order#']]
     bsi_first['Vendor'] = 'HGSC'
-    bsi_second = bsi_second[['Phenotips_ID', 'Exome_ID', 'Batch_Received', 'CRIS_Order#']]
-    bsi_second['Vendor'] = 'HGSC'
-
     bsi_first.rename(columns = {'CRIS_Order#': 'CRIS_Order_ID'}, inplace = True)
-    bsi_second.rename(columns = {'CRIS_Order#': 'CRIS_Order_ID'}, inplace = True)
-
     bsi_first.to_csv('Batch' + str(batch) + '_BaylorExoIDs.csv', index = False)
-    bsi_second.to_csv('Batch' + str(batch + 1) + '_BaylorExoIDs.csv', index = False)
+
+    if second_half is not None:
+        bsi_second = second_half[second_half['Batch_Received'].str.match('BATCH' + str(batch + 1), na = False)]
+        bsi_second = bsi_second[['Phenotips_ID', 'Exome_ID', 'Batch_Received', 'CRIS_Order#']]
+        bsi_second['Vendor'] = 'HGSC'
+        bsi_second.rename(columns = {'CRIS_Order#': 'CRIS_Order_ID'}, inplace = True)
+        bsi_second.to_csv('Batch' + str(batch + 1) + '_BaylorExoIDs.csv', index = False)
 
 
 def main():
@@ -389,61 +388,72 @@ def main():
 
     parser = argparse.ArgumentParser(description=parseStr, formatter_class=RawTextHelpFormatter)
     parser.add_argument('-b', '--batch', required=True, type=int, help='Batch number (integer)')
-    parser.add_argument('-p', '--pedfile_only', required=False, action='store_true', default=False, help='Output ped file only, do not update the tracking, masterkey or other files')
     parser.add_argument('-d', '--dir', required=True, type=str, help='Directory containing raw BAMs and gVCFs from HGSC')
     parser.add_argument('-s', '--sample_key', required=True, type=str,  help='Path to HGSC Sample Key file')
+    parser.add_argument('-u', '--unsplit', required=False, action='store_true', help='Will not split the batch into two')
 
     args = parser.parse_args()
     batch = args.batch
-    pedonly = args.pedfile_only
     dir = args.dir
     sample_key_path = args.sample_key
+    unsplit = args.unsplit
 
     print('\nReading in sample key file and making masterkey file...')
     # Get masterkey, and information on sequenced/unsequenced family members of received patients
     masterkey, sequenced_family, unsequenced_family, received = write_masterkey(sample_key_path)
     # print(unsequenced_family.columns)
 
-    # split the main masterkey in half
-    # these will be used to subset the VCF into two batches
-    first_half, second_half = write_split_masterkeys(masterkey)
+    if unsplit:
+        batch_name = 'BATCH' + str(batch)
+        print('Creating files for unsplit ' + batch_name)
 
-    batch_name_first = 'BATCH' + str(batch)
-    batch_name_second = 'BATCH' + str(batch + 1)
+        write_bsi_info(masterkey, None)
+        make_sample_tracking_file(batch, unsequenced_family, masterkey, received, [])
+        write_bam_link_script(masterkey, batch)
 
-    # Check if all the numbers match up
-    if first_half.shape[0] + second_half.shape[0] != masterkey.shape[0]:
-        print('WARNING: not all samples from the main masterkey are in the split masterkeys')
+        masterkey[['Exome_ID', 'Phenotips_ID', 'DLM_LIS_Number', 'Batch_Sent', 'Batch_Received']].to_csv('masterkey_' + batch_name + '.txt', index=False, sep='\t')
 
-    print('----------------------- Batch ' + str(batch) + ' Masterkey -----------------------')
-    print(str(first_half.shape[0]) + ' total')
-    print('- ' + str(first_half[first_half['Batch_Received'] == batch_name_first].shape[0]) + ' received')
-    print('- ' + str(first_half[first_half['Batch_Received'] != batch_name_first].shape[0]) + ' sequenced family\n')
+    else:
+        # split the main masterkey in half
+        # these will be used to subset the VCF into two batches
+        first_half, second_half = write_split_masterkeys(masterkey)
 
-    print('----------------------- Batch ' + str(batch + 1) + ' Masterkey -----------------------')
-    print(str(second_half.shape[0]) + ' total')
-    print('- ' + str(second_half[second_half['Batch_Received'] == batch_name_second].shape[0]) + ' received')
-    print('- ' + str(second_half[second_half['Batch_Received'] != batch_name_second].shape[0]) + ' sequenced family\n\n')
+        batch_name_first = 'BATCH' + str(batch)
+        batch_name_second = 'BATCH' + str(batch + 1)
 
-    # Make files to link patient IDs with Batch Received in BSI
-    write_bsi_info(first_half, second_half)
+        # Check if all the numbers match up
+        if first_half.shape[0] + second_half.shape[0] != masterkey.shape[0]:
+            print('WARNING: not all samples from the main masterkey are in the split masterkeys')
 
-    print("\nGenerating sample tracking files...")
-    # Write sample tracking summary for both batches
-    make_sample_tracking_file(batch, unsequenced_family, first_half, received, [])
-    make_sample_tracking_file(batch + 1, unsequenced_family, second_half, received, [])
+        print('----------------------- Batch ' + str(batch) + ' Masterkey -----------------------')
+        print(str(first_half.shape[0]) + ' total')
+        print('- ' + str(first_half[first_half['Batch_Received'] == batch_name_first].shape[0]) + ' received')
+        print('- ' + str(first_half[first_half['Batch_Received'] != batch_name_first].shape[0]) + ' sequenced family\n')
 
-    # Make the link_previous_bams files
-    write_bam_link_script(first_half, batch)
-    write_bam_link_script(second_half, batch + 1)
+        print('----------------------- Batch ' + str(batch + 1) + ' Masterkey -----------------------')
+        print(str(second_half.shape[0]) + ' total')
+        print('- ' + str(second_half[second_half['Batch_Received'] == batch_name_second].shape[0]) + ' received')
+        print('- ' + str(second_half[second_half['Batch_Received'] != batch_name_second].shape[0]) + ' sequenced family\n\n')
 
-    # Finally, write out all the masterkeys in desired format
-    masterkey[['Exome_ID', 'Phenotips_ID', 'DLM_LIS_Number', 'Batch_Sent', 'Batch_Received']].to_csv('masterkey.txt', index=False, sep='\t')
-    first_half[['Exome_ID', 'Phenotips_ID', 'DLM_LIS_Number', 'Batch_Sent', 'Batch_Received']].to_csv('masterkey_' + 'BATCH' + str(batch) + '.txt', index = False, sep = '\t')
-    second_half[['Exome_ID', 'Phenotips_ID', 'DLM_LIS_Number', 'Batch_Sent', 'Batch_Received']].to_csv('masterkey_' + 'BATCH' + str(batch + 1) + '.txt', index = False, sep = '\t')
+        # Make files to link patient IDs with Batch Received in BSI
+        write_bsi_info(first_half, second_half)
+
+        print("\nGenerating sample tracking files...")
+        # Write sample tracking summary for both batches
+        make_sample_tracking_file(batch, unsequenced_family, first_half, received, [])
+        make_sample_tracking_file(batch + 1, unsequenced_family, second_half, received, [])
+
+        # Make the link_previous_bams files
+        write_bam_link_script(first_half, batch)
+        write_bam_link_script(second_half, batch + 1)
+
+        # Finally, write out all the masterkeys in desired format
+        masterkey[['Exome_ID', 'Phenotips_ID', 'DLM_LIS_Number', 'Batch_Sent', 'Batch_Received']].to_csv('masterkey.txt', index=False, sep='\t')
+        first_half[['Exome_ID', 'Phenotips_ID', 'DLM_LIS_Number', 'Batch_Sent', 'Batch_Received']].to_csv('masterkey_' + 'BATCH' + str(batch) + '.txt', index=False, sep='\t')
+        second_half[['Exome_ID', 'Phenotips_ID', 'DLM_LIS_Number', 'Batch_Sent', 'Batch_Received']].to_csv('masterkey_' + 'BATCH' + str(batch + 1) + '.txt', index=False, sep='\t')
+
+
     print('\nAll done!')
-
-
 
 
 if __name__ == '__main__':
