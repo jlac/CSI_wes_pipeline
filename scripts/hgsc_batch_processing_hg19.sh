@@ -106,7 +106,7 @@ CLUSTER_OPTS="sbatch --gres {cluster.gres} --cpus-per-task {cluster.threads} -p 
 
 if [ "$2" == "npr" ]
 then
-    snakemake -npr --snakefile scripts/hgsc_batch_processing_hg19.snakemake
+    snakemake -npr --snakefile CSI_wes_pipeline/scripts/hgsc_batch_processing_hg19.snakemake
 fi
 
 if [ "$2" == "process" ]
