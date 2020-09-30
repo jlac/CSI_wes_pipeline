@@ -71,7 +71,7 @@ dict_CIDR = dict(zip(df['Phenotips_ID'].tolist(), df['Exome_ID'].tolist()))
 print(dict_CIDR)
 #exit
 
-configfile:"CSI_wes_pipeline/processing_references_hg19_locus.json"
+configfile:"CSI_wes_pipeline/resources/processing_references_hg19_locus.json"
 
 ##
 ## Set rule all
