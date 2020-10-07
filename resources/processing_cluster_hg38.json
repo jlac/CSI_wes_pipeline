@@ -33,6 +33,16 @@
               "threads": "8",
               "partition": "avx2"
       },
+      "trimmomatic": {
+              "threads": "8",
+              "mem": "16G",
+              "vmem": "2G"
+      },
+      "bwa_mem": {
+              "threads": "8",
+              "mem": "16G",
+              "vmem": "2G"
+      },
       "hla_concat": {
               "threads": "2",
               "partition": "quick",

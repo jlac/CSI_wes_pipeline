@@ -86,7 +86,7 @@ echo $SCRIPTPATH
 if [ "$2" == "gris" ] 
 then
     echo "Running csi_to_gris"
-    python3 CSI_wes_pipeline/scripts/csi_to_gris_hgsc.py -b $batchnumber -d $raw_dir -s $raw_dir/sample_key.xlsx
+    python3 "$SCRIPTPATH/"csi_to_gris_hgsc.py -b $batchnumber -d $raw_dir -s $raw_dir/sample_key.xlsx
     exit
 fi
 
@@ -98,6 +98,7 @@ mkdir -p BATCH_QC
 ##
 echo "Run snakemake"
 
+#CLUSTER_OPTS="sbatch --gres {cluster.gres} --cpus-per-task {cluster.threads} -p {cluster.partition} -t {cluster.time} --mem {cluster.mem} --job-name={params.rname} -e snakejobs/slurm-%j_{params.rname}.out -o snakejobs/slurm-%j_{params.rname}.out --chdir=$batchdir"
 CLUSTER_OPTS="qsub -e snakejobs -o snakejobs -pe threaded {cluster.threads} -l {cluster.partition} -l h_vmem={cluster.vmem} -l mem_free={cluster.mem} -wd $batchdir"
 
 if [ "$2" == "npr" ]

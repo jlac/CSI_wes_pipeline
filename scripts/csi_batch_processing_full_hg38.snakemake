@@ -60,7 +60,7 @@ dir_peds = "/data/NCBR/projects/csi_test_batch/pedigrees_updated"
 todays_date = re.sub('-','',str(datetime.datetime.today()).split()[0])
 
 ##
-## Read in the masterkey file 
+## Read in the masterkey files
 ##
 #print(listdir(os.getcwd()))
 df = pd.read_csv("masterkey_batch"+batch_number + ".txt", header=0, sep='\t')
@@ -69,7 +69,11 @@ dict_CIDR = dict(zip(df['Phenotips_ID'].tolist(), df['Exome_ID'].tolist()))
 print(dict_CIDR)
 #exit
 
-configfile:"/hpcdata/dir/CIDR_HG38/pipeline/processing_references_hg38.json"
+#df = pd.read_csv("rg_key.txt", header=0, sep='\t')
+#dict_RGs = dict(zip(df['Phenotips_ID'].tolist(), df['ReadGroup_ID'].tolist()))
+#print(dict_RGs)
+
+configfile:"CSI_wes_pipeline/resources/processing_references_hg38.json"
 
 chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chr20","chr21","chr22","chrX","chrY","chrM"]
 
@@ -82,15 +86,16 @@ rule all:
 #        flagstats=expand(join("BATCH_QC/Flagstats/{newID}.flagstats"),newID=list(dict_CIDR.keys())),
 #        qualimap=expand(join("BATCH_QC/{newID}", "qualimapReport.html"),newID=list(dict_CIDR.keys())),
 #        vcftools = join("BATCH_QC/", batch_name + ".het"),
-        collectvarintcallmetrics = join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics"),
+#        collectvarintcallmetrics = join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics"),
 #        varianteval=expand(join("BATCH_QC/VariantEval/{newID}"),newID=list(dict_CIDR.keys())),
 #        snpeff= expand(join("BATCH_QC/SNPeff/{newID}/{newID}"),newID=list(dict_CIDR.keys())),
 #        bcftools=expand(join("BATCH_QC/BCFStats/{newID}"),newID=list(dict_CIDR.keys())),
 #        multiqc=join("BATCH_QC/QC_Report.html"),
-        recalbam = expand("BAM/{newID}.recal.bam", newID=list(dict_CIDR.keys())),
-#        bam = expand("BAM/{newID}.bam", newID=list(dict_CIDR.keys())),
-        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
-        vci = join(dir_renamed, "VCF", batch_name + ".vcf.gz.tbi"),
+#        recalbam = expand("BAM/{newID}.recal.bam", newID=list(dict_CIDR.keys())),
+#        rehead=expand("BAM/{newID}.rehead.bam", newID=list(dict_CIDR.keys())),
+        bam = expand("BAM/{newID}.foo.bam", newID=list(dict_CIDR.keys())),
+#        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+#        vci = join(dir_renamed, "VCF", batch_name + ".vcf.gz.tbi"),
 #        target = expand(join(dir_renamed, "QC", "TARGET", "{newID}.TARGET.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
 #        ucsc = expand(join(dir_renamed, "QC", "UCSC", "{newID}.UCSC.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
 #        last_ped = join(dir_peds, todays_date, "seqr_ped_batch" + last_batch + ".txt"),
@@ -105,74 +110,87 @@ rule all:
 #        annot2 = expand(join(dir_renamed, "CNV_100", "{newID}", "{newID}.segments.annotations.tsv"), newID = list(dict_CIDR.keys())),
 #        candidates = expand(join(dir_renamed, "CNV_100", "{newID}", "{newID}.candidate.cnvs"), newID = list(dict_CIDR.keys())),
 #        fixed_cnv = expand(join(dir_renamed, "CNV_100", "{newID}", "{newID}_cnv.txt"), newID = list(dict_CIDR.keys())),
-        final="VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
+#        final="VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
 
 ###
 ### Here's where the old QC rules start
 ###
 
-rule bam2fastq:
+#rule bam2fastq:
+#    input: bam = lambda w: [join(dir_rawdata, seqdir, dict_CIDR[w.newID] + seqfile)],
+#    output: dir="fastqs/{newID}",
+#    params: rname="bam2fastq",genome=config['references']['GENOME'],sample="{newID}"
+#    shell: """
+#           set +u
+#           module load GATK/4.1.6.0-Java-1.8.0_92
+#           mkdir -p fastqs
+#           mkdir -p fastqs/{params.sample}
+#           gatk SamToFastq --INPUT {input.bam} --OUTPUT_DIR {output.dir} -R {params.genome} --OUTPUT_PER_RG --COMPRESS_OUTPUTS_PER_RG --RG_TAG ID
+#           """
+
+rule namesort:
     input: bam = lambda w: [join(dir_rawdata, seqdir, dict_CIDR[w.newID] + seqfile)],
-    output: r1=temp("fastqs/{newID}.R1.fastq.gz"),
-            r2=temp("fastqs/{newID}.R2.fastq.gz"),
-            orphans=temp("fastqs/{newID}.unpaired.fastq.gz"),
-    params: rname="bam2fastq",genome=config['references']['GENOME']
+    output: "fastqs/{newID}.namesort.bam",
+    params: rname="bam2fastq",genome=config['references']['GENOME'],sample="{newID}"
     shell: """
            set +u
-           module load GATK/4.1.6.0-Java-1.8.0_92
+           module load samtools/1.9-goolf-1.7.20
            mkdir -p fastqs
-           gatk SamToFastq --INPUT {input.bam} --FASTQ {output.r1} --SECOND_END_FASTQ {output.r2} --UNPAIRED_FASTQ {output.orphans} -R /hpcdata/dir/CSI_DATA_PROCESSED/references/human_g1k_v37_decoy.fasta
+           samtools sort -n -@ 3 -o {output} {input.bam}
+           """
+
+rule bam2fastq:
+    input: bam = "fastqs/{newID}.namesort.bam",
+    output: r1="fastqs/{newID}.R1.fastq.gz",
+            r2="fastqs/{newID}.R2.fastq.gz",
+            r0="fastqs/{newID}.other.fastq.gz",
+            singletons="fastqs/{newID}.singletons.fastq.gz",
+    params: rname="bam2fastq",genome=config['references']['GENOME'],sample="{newID}"
+    shell: """
+           set +u
+           module load samtools/1.9-goolf-1.7.20
+           mkdir -p fastqs
+           samtools fastq -0 {output.r0} -1 {output.r1} -2 {output.r2} -s {output.singletons} -t {input.bam}
            """
 
 rule trimmomatic:
-    input:  r1=join("fastqs/{newID}.R1.fastq.gz"),
-            r2=join("fastqs/{newID}.R2.fastq.gz"),
-    output: one=temp("fastqs/{newID}.R1.trimmed.fastq.gz"),
-            two=temp("fastqs/{newID}.R1.trimmed.unpair.fastq.gz"),
-            three=temp("fastqs/{newID}.R2.trimmed.fastq.gz"),
-            four=temp("fastqs/{newID}.R2.trimmed.unpair.fastq.gz"),
+    input:  r1="fastqs/{newID}.R1.fastq.gz",
+            r2="fastqs/{newID}.R2.fastq.gz",
+    output: one="fastqs/{newID}.R1.trimmed.fastq.gz",
+            two="fastqs/{newID}.R1.trimmed.unpair.fastq.gz",
+            three="fastqs/{newID}.R2.trimmed.fastq.gz",
+            four="fastqs/{newID}.R2.trimmed.unpair.fastq.gz",
             err="fastqs/{newID}_run_trimmomatic.err"
     params: adapterfile=config['references']['trimmomatic.adapters'],rname="pl:trimmomatic"
-    threads: 32
+    threads: 8
     shell:  """
             set +u
             module load trimmomatic/0.36
             java -jar $EBROOTTRIMMOMATIC/trimmomatic-0.36.jar PE -threads {threads} -phred33 {input[0]} {input[1]} {output.one} {output.two} {output.three} {output.four} ILLUMINACLIP:{params.adapterfile}:3:30:10 LEADING:10 TRAILING:10 SLIDINGWINDOW:4:20 MINLEN:20 2> {output.err}
             """
 
-rule fastqc_raw:
-    input: "fastqs/{newID}.R1.fastq.gz","fastqs/{newID}.R2.fastq.gz"
-    output: "BATCH_QC/FastQC/{newID}.R1_fastqc.html","BATCH_QC/FastQC/{newID}.R2_fastqc.html"
-    params: adapters=config['references']['fastqc_adapters'], rname="fastqc_raw"
-    threads: 4
-    shell: """
-           set +u
-           mkdir -p BATCH_QC/FastQC
-           module load fastqc/0.11.8-Java-1.8.0_45
-           fastqc -o BATCH_QC/FastQC -f fastq --threads {threads} --contaminants {params.adapters} {input}
-           """
-
 rule fastqc_trimmed:
-    input:  "fastqs/{newID}.R1.trimmed.fastq.gz","fastqs/{newID}.R2.trimmed.fastq.gz"
-    output: "BATCH_QC/FastQC/{newID}.R1.trimmed_fastqc.html","BATCH_QC/FastQC/{newID}.R2.trimmed_fastqc.html"
+    input:  "BAM/{newID}.recal.bam",
+    output: "BAM/{newID}.recal_fastqc.html"
     params: adapters=config['references']['fastqc_adapters'],rname="pl:fastqc"
     threads: 4
     shell: """
            set +u
            mkdir -p BATCH_QC/FastQC
            module load fastqc/0.11.8-Java-1.8.0_45
-           fastqc -o BATCH_QC/FastQC -f fastq --threads {threads} --contaminants {params.adapters} {input}
+           fastqc -o BATCH_QC/FastQC -f bam --threads {threads} --contaminants {params.adapters} {input}
            """
 
 rule bwa_mem:
-    input:  "fastqs/{newID}.R1.trimmed.fastq.gz","fastqs/{newID}.R2.trimmed.fastq.gz"
-    output: temp("BAM/{newID}.foo.bam")
-    params: genome=config['references']['GENOME'],sample = "{newID}",rname="pl:bwamem"
+    input:  "fastqs/{newID}.R1.trimmed.fastq.gz",
+            "fastqs/{newID}.R2.trimmed.fastq.gz",
+    output: "BAM/{newID}.foo.bam"
+    params: genome=config['references']['GENOME'],rname="pl:bwamem"
     shell:  """
             set +u
             module load samtools/1.9-goolf-1.7.20
             module load bwa/0.7.17-goolf-1.7.20
-            bwa mem -M -R \'@RG\\tID:{params.sample}\\tSM:{params.sample}\\tPL:illumina\\tLB:{params.sample}\\tPU:{params.sample}\\tCN:hgsc\\tDS:wes\' -t 12 {params.genome} {input} | /hpcdata/dir/software/samblaster/samblaster -M | samtools sort -@12 -m 4G - -o {output}
+            bwa mem -M -C -t 8 {params.genome} {input} | /hpcdata/dir/software/samblaster/samblaster -M | samtools sort -@8 -m 2G - -o {output}
             """
 
 #rule picard_headers:
@@ -216,6 +234,36 @@ rule bwa_mem:
 #                java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T RealignerTargetCreator -I {input} -R {params.genome} --use_jdk_inflater --use_jdk_deflater {params.knownindels} -o {output.int}
 #                java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T IndelRealigner -R {params.genome} -I {input} --use_jdk_inflater --use_jdk_deflater -targetIntervals {output.int} {params.knownindels} -o {output.re}
 #                """
+
+#rule mergebam:
+#      input:  lambda w: [join("BAM/{ptipID}", dict_RGs[w.ptipID] + ".bam")]
+#      output: bam="BAM/{newID}.rehead.bam",
+#      params: rname="header",oldname=lambda w: dict_CIDR[w.newID],sample="{newID}"
+#      threads: 24
+#      shell:  """
+#              set +u
+#              module load samtools
+#              samtools view -H {input.oldbam} | grep \'@RG\' | grep -v \'@PG\' | sed -e 's/{params.oldname}/{params.sample}/g' | perl -pe 's/\s+/\n/g' > BAM/{params.sample}.RG.txt
+#              ID="`grep 'ID:' BAM/{params.sample}.RG.txt | cut -d':' -f2`"
+#              echo $ID
+#              PL="`grep 'PL:' BAM/{params.sample}.RG.txt | cut -d':' -f2`"
+#              echo $PL
+#              PU="`grep 'PU:' BAM/{params.sample}.RG.txt | cut -d':' -f2`"
+#              echo $PU
+#              LB="`grep 'LB:' BAM/{params.sample}.RG.txt | cut -d':' -f2`"
+#              echo $LB
+#              DS="`grep 'DS:' BAM/{params.sample}.RG.txt | cut -d':' -f2`"
+#              echo $DS
+#              DT="`grep 'DT:' BAM/{params.sample}.RG.txt | cut -d':' -f2,3,4`"
+#              echo $DT
+#              SM="`grep 'SM:' BAM/{params.sample}.RG.txt | cut -d':' -f2`"
+#              echo $SM
+#              CN="`grep 'CN:' BAM/{params.sample}.RG.txt | cut -d':' -f2`"
+#              echo $CN
+#              module load GATK/4.1.6.0-Java-1.8.0_92
+#              gatk AddOrReplaceReadGroups --INPUT {input.newbam} --RGID $ID --RGPL $PL --RGPU $PU --RGLB $PU --RGDS $DS --RGDT $DT --RGSM $SM --RGCN $CN --OUTPUT {output.bam}
+#              samtools index {output.bam}
+#              """
 
 rule gatk_recal:
       input:  "BAM/{newID}.foo.bam"
