@@ -82,13 +82,13 @@ chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10"
 ##
 rule all:
     input:
-        fastqc=expand(join("BATCH_QC/FastQC/{newID}.R1_fastqc.html"),newID=list(dict_CIDR.keys())),
+        fastqc=expand(join("BATCH_QC/FastQC/{newID}.recal_fastqc.html"),newID=list(dict_CIDR.keys())),
         flagstats=expand(join("BATCH_QC/Flagstats/{newID}.flagstats"),newID=list(dict_CIDR.keys())),
         qualimap=expand(join("BATCH_QC/{newID}", "qualimapReport.html"),newID=list(dict_CIDR.keys())),
         vcftools = join("BATCH_QC/", batch_name + ".het"),
         collectvarintcallmetrics = join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics"),
         varianteval=expand(join("BATCH_QC/VariantEval/{newID}"),newID=list(dict_CIDR.keys())),
-        snpeff= expand(join("BATCH_QC/SNPeff/{newID}/{newID}"),newID=list(dict_CIDR.keys())),
+#        snpeff= expand(join("BATCH_QC/SNPeff/{newID}/{newID}"),newID=list(dict_CIDR.keys())),
         bcftools=expand(join("BATCH_QC/BCFStats/{newID}"),newID=list(dict_CIDR.keys())),
         multiqc=join("BATCH_QC/QC_Report.html"),
         recalbam = expand("BAM/{newID}.recal.bam", newID=list(dict_CIDR.keys())),
@@ -155,7 +155,7 @@ rule trimmomatic:
 
 rule fastqc:
     input:  "BAM/{newID}.recal.bam",
-    output: "BAM/{newID}.recal_fastqc.html"
+    output: "BATCH_QC/FastQC/{newID}.recal_fastqc.html"
     params: adapters=config['references']['fastqc_adapters'],rname="pl:fastqc"
     threads: 4
     shell: """
@@ -182,7 +182,7 @@ rule rehead:
              oldbam=lambda w: [join(dir_rawdata, seqdir, dict_CIDR[w.newID] + seqfile)],
      output: header=temp("BAM/{newID}_header.sam"),
              bam=temp("BAM/{newID}.header.bam")
-     params: sample = "{newID}",rname="rehead"
+     params: sample = "{newID}",oldsample=lambda w: dict_CIDR[w.newID],rname="rehead"
      shell:  """
              module load samtools/1.9-goolf-1.7.20
              samtools index {input.newbam}
