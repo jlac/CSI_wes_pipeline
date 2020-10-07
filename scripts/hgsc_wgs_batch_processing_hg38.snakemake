@@ -33,9 +33,9 @@ dir_hla_master = "/sysapps/cluster/software/HLA-LA/1.0/HLA-LA-master"
 batch_number = re.sub("^.*BATCH","",dir_renamed)
 batch_name = "BATCH" + batch_number
 if int(batch_number) < 10:
-    batch_name0 = "BATCH0" + batch_number
+    batch_name0 = "WGS_BATCH" + batch_number
 else:
-    batch_name0 = "BATCH" + batch_number
+    batch_name0 = "WGS_BATCH" + batch_number
 
 ## Set variables for rerunning all of the old pedigrees
 last_batch = str(int(batch_number) - 1)
@@ -53,7 +53,7 @@ dict_CIDR = dict(zip(df['Phenotips_ID'].tolist(), df['Exome_ID'].tolist()))
 print(dict_CIDR)
 #exit
 
-configfile:"CSI_wes_pipeline/resources/processing_references_hg38_locus.json"
+configfile:"CSI_wes_pipeline/resources/processing_references_hg38.json"
 
 chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chr20","chr21","chr22","chrX","chrY","chrM"]
 
@@ -71,9 +71,8 @@ rule all:
         snpeff= expand(join("BATCH_QC/SNPeff/{newID}/{newID}"),newID=list(dict_CIDR.keys())),
         bcftools=expand(join("BATCH_QC/BCFStats/{newID}"),newID=list(dict_CIDR.keys())),
         multiqc=join("BATCH_QC/QC_Report.html"),
-        bam = expand("BAM/{newID}.recal.bam", newID=list(dict_CIDR.keys())),
-        vcfa = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
-        vcfb = join(dir_renamed, "VCF", "BATCH" + split_batch + ".vcf.gz"),
+#        bam = expand("BAM/{newID}.recal.bam", newID=list(dict_CIDR.keys())),
+        vcf = "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
 #        target = expand(join(dir_renamed, "QC", "TARGET", "{newID}.TARGET.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
 #        ucsc = expand(join(dir_renamed, "QC", "UCSC", "{newID}.UCSC.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
 #        last_ped = join(dir_peds, todays_date, "seqr_ped_batch" + last_batch + ".txt"),
@@ -91,9 +90,9 @@ rule all:
         final="VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
 
 rule namesort:
-    input: bam = lambda w: [join(dir_rawdata, seqdir, dict_CIDR[w.newID] + ".hgv.cram")],
+    input: bam = lambda w: [join(dir_rawdata, dict_CIDR[w.newID] + ".hgv.cram")],
     output: temp("fastqs/{newID}.namesort.bam"),
-    params: rname="bam2fastq",genome=config['references']['GENOME'],sample="{newID}"
+    params: rname="bam2fastq",genome=config['references']['GENOME']
     shell: """
            set +u
            module load samtools/1.9-goolf-1.7.20
@@ -144,8 +143,8 @@ rule bwa_mem:
             """
 
 rule index:
-      input:  bam="BAM/{newID}_{lanes}.foo.bam"
-      output: bai=temp("BAM/{newID}_{lanes}.bai"),
+      input:  bam="BAM/{newID}.foo.bam"
+      output: bai=temp("BAM/{newID}.bai"),
       params: rname="index"
       shell:  """
               set +u
@@ -153,83 +152,90 @@ rule index:
               samtools index -@ 2 {input.bam} {output.bai}
               """
 
+rule rehead:
+     input:  newbam="BAM/{newID}.foo.bam",
+             oldbam=lambda w: [join(dir_rawdata, dict_CIDR[w.newID] + ".hgv.cram")],
+     output: header=temp("BAM/{newID}_header.sam"),
+             bam=temp("BAM/{newID}.header.bam")
+     params: sample = "{newID}",oldsample=lambda w: dict_CIDR[w.newID],rname="rehead"
+     shell:  """
+             module load samtools/1.9-goolf-1.7.20
+             samtools view -H {input.oldbam} | sed -e 's/SM:{params.oldsample}/SM:{params.sample}/g' > {output.header}
+             samtools reheader -P {output.header} {input.newbam} {output.bam}
+             samtools index {output.bam}
+             """
+
 rule recal_1:
-      input:  bam="BAM/{newID}.foo.bam",
-              bai="BAM/{newID}.bai",
-      output: re=temp("BAM/{newID}_1_recal_data.grp")
+      input:  bam="BAM/{newID}.header.bam",
+      output: re=temp("BAM/{newID}.1_recal_data.grp")
       params: genome=config['references']['GENOME'],knowns=config['references']['KNOWNRECAL'],rname="recal1"
       shell:  """
               set +u
               module load GATK/4.1.6.0-Java-1.8.0_92
-              gatk --java-options '-Xmx48g' BaseRecalibrator --input {input.bam} --reference {params.genome} {params.knowns} --output {output.re} -L 1 -L 2 -L 14 -L Y
+              gatk --java-options '-Xmx48g' BaseRecalibrator --input {input.bam} --reference {params.genome} {params.knowns} --output {output.re} -L chr1 -L chr2 -L chr14 -L chrY
               """
 
 rule recal_2:
-      input:  bam="BAM/{newID}.foo.bam",
-              bai="BAM/{newID}.bai",
-      output: re=temp("BAM/{newID}_2_recal_data.grp")
+      input:  bam="BAM/{newID}.header.bam",
+      output: re=temp("BAM/{newID}.2_recal_data.grp")
       params: genome=config['references']['GENOME'],knowns=config['references']['KNOWNRECAL'],rname="recal2"
       shell:  """
               set +u
               module load GATK/4.1.6.0-Java-1.8.0_92
-              gatk --java-options '-Xmx48g' BaseRecalibrator --input {input.bam} --reference {params.genome} {params.knowns} --output {output.re} -L 3 -L 4 -L 5 -L 21
+              gatk --java-options '-Xmx48g' BaseRecalibrator --input {input.bam} --reference {params.genome} {params.knowns} --output {output.re} -L chr3 -L chr4 -L chr5 -L chr21
               """
 
 rule recal_3:
-      input:  bam="BAM/{newID}.foo.bam",
-              bai="BAM/{newID}.bai",
-      output: re=temp("BAM/{newID}_3_recal_data.grp")
+      input:  bam="BAM/{newID}.header.bam",
+      output: re=temp("BAM/{newID}.3_recal_data.grp")
       params: genome=config['references']['GENOME'],knowns=config['references']['KNOWNRECAL'],rname="recal3"
       shell:  """
               set +u
               module load GATK/4.1.6.0-Java-1.8.0_92
-              gatk --java-options '-Xmx48g' BaseRecalibrator --input {input.bam} --reference {params.genome} {params.knowns} --output {output.re} -L 6 -L 7 -L 15 -L 16 -L 18
+              gatk --java-options '-Xmx48g' BaseRecalibrator --input {input.bam} --reference {params.genome} {params.knowns} --output {output.re} -L chr6 -L chr7 -L chr15 -L chr16 -L chr18
               """
 
 rule recal_4:
-      input:  bam="BAM/{newID}.foo.bam",
-              bai="BAM/{newID}.bai",
-      output: re=temp("BAM/{newID}_4_recal_data.grp")
+      input:  bam="BAM/{newID}.header.bam",
+      output: re=temp("BAM/{newID}.4_recal_data.grp")
       params: genome=config['references']['GENOME'],knowns=config['references']['KNOWNRECAL'],rname="recal4"
       shell:  """
               set +u
               module load GATK/4.1.6.0-Java-1.8.0_92
-              gatk --java-options '-Xmx48g' BaseRecalibrator --input {input.bam} --reference {params.genome} {params.knowns} --output {output.re} -L 8 -L 9 -L 10 -L 13 -L 20
+              gatk --java-options '-Xmx48g' BaseRecalibrator --input {input.bam} --reference {params.genome} {params.knowns} --output {output.re} -L chr8 -L chr9 -L chr10 -L chr13 -L chr20
               """
 
 rule recal_5:
-      input:  bam="BAM/{newID}.foo.bam",
-              bai="BAM/{newID}.bai",
-      output: re=temp("BAM/{newID}_5_recal_data.grp")
+      input:  bam="BAM/{newID}.header.bam",
+      output: re=temp("BAM/{newID}.5_recal_data.grp")
       params: genome=config['references']['GENOME'],knowns=config['references']['KNOWNRECAL'],rname="recal5"
       shell:  """
               set +u
               module load GATK/4.1.6.0-Java-1.8.0_92
-              gatk --java-options '-Xmx48g' BaseRecalibrator --input {input.bam} --reference {params.genome} {params.knowns} --output {output.re} -L 11 -L 12 -L 17 -L 19 -L 22 -L X
+              gatk --java-options '-Xmx48g' BaseRecalibrator --input {input.bam} --reference {params.genome} {params.knowns} --output {output.re} -L chr11 -L chr12 -L chr17 -L chr19 -L chr22 -L chrX
               """
 
 rule gather_bqsr:
-    input: "BAM/{newID}_1_recal_data.grp","BAM/{newID}_2_recal_data.grp","BAM/{newID}_3_recal_data.grp","BAM/{newID}_4_recal_data.grp","BAM/{newID}_5_recal_data.grp"
-    output: recal = "BAM/{newID}_recal_data.grp",
+    input: "BAM/{newID}.1_recal_data.grp","BAM/{newID}.2_recal_data.grp","BAM/{newID}.3_recal_data.grp","BAM/{newID}.4_recal_data.grp","BAM/{newID}.5_recal_data.grp"
+    output: recal = "BAM/{newID}.recal_data.grp",
             list = temp("BAM/{newID}.recals.list")
     params: sample="{newID}",rname="gather_bqsr"
     shell: """
            set +u
            module load GATK/4.1.6.0-Java-1.8.0_92
-           ls BAM/{params.sample}_*_recal_data.grp > BAM/{params.sample}.recals.list
+           ls BAM/{params.sample}.*_recal_data.grp > BAM/{params.sample}.recals.list
            gatk --java-options '-Xmx24g' -I BAM/{params.sample}.recals.list --use-jdk-inflater --use-jdk-deflater -O {output.recal}
            """
 
 rule apply_recal:
-      input:  bam="BAM/{newID}.foo.bam",
-              bai="BAM/{newID}.bai",
-              re=temp("BAM/{newID}_recal_data.grp")
-      output: bam=temp("BAM/{newID}.recal.bam"),
+      input:  bam="BAM/{newID}.header.bam",
+              re="BAM/{newID}.recal_data.grp"
+      output: bam="BAM/{newID}.recal.bam",
       params: genome=config['references']['GENOME'],rname="apply_recal"
       shell:  """
               set +u
               module load GATK/4.1.6.0-Java-1.8.0_92
-              gatk --java-options '-Xmx48g' ApplyBQSR --reference {params.genome} --input {input.bam} --bqsr-recal-file {output.re} --output {output.bam} --use-jdk-inflater --use-jdk-deflater
+              gatk --java-options '-Xmx48g' ApplyBQSR --reference {params.genome} --input {input.bam} --bqsr-recal-file {input.re} --output {output.bam} --use-jdk-inflater --use-jdk-deflater
               """
 
 rule fastqc:
@@ -267,7 +273,7 @@ rule samtools_flagstats:
            """
 
 rule vcftools:
-    input: join(dir_renamed, "VCF", "BATCH_renamed.vcf.gz"),
+    input: "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
     output: join("BATCH_QC/", batch_name + ".het"),
     params: batch=batch_name,rname="vcftools"
     shell: """
@@ -277,7 +283,7 @@ rule vcftools:
            """
 
 rule collectvariantcallmetrics:
-    input: join(dir_renamed, "VCF", "BATCH_renamed.vcf.gz"),
+    input: "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
     output: join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics")
     params: vcf=config['references']['DBSNP'],batch=batch_name,rname="varcallmetrics"
     shell: """
@@ -287,7 +293,7 @@ rule collectvariantcallmetrics:
            """
 
 rule Gatk_SelectVariants:
-	input: join(dir_renamed, "VCF", "BATCH_renamed.vcf.gz"),
+	input: "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
 	output: temp(join("BATCH_QC/{newID}.vcf.gz"))
 	params: genome=config['references']['GENOME'], Sname = "{newID}", rname="varselect"
 	shell:"""
@@ -355,7 +361,7 @@ rule multiqc:
 ###
 rule admixture:
     input: 
-        vcf = join(dir_renamed, "VCF", "BATCH_renamed.vcf.gz"),
+        vcf = "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
     output: 
         filtvcf = temp(join(dir_renamed, "BATCH_QC", "admixture", "filtered.recode.vcf")),
         mergedvcf = temp(join(dir_renamed, "BATCH_QC", "admixture", "merged.knowns.vcf")),
@@ -402,7 +408,7 @@ rule admixplot:
 ###
 rule inbreeding:
     input: 
-        vcf = join(dir_renamed, "VCF", "BATCH_renamed.vcf.gz"),
+        vcf = "VCF/COVID_WGS_" + batch_name + ".vcf.gz",
     output: 
         knownsvcf = temp(join(dir_renamed, "inbreeding", "known.sites.vcf")),
         filtvcf = temp(join(dir_renamed, "inbreeding", "filtered.known.sites.recode.vcf.gz")),
@@ -412,7 +418,7 @@ rule inbreeding:
         batch = batch_name, 
         rname = "inbreeding",
         knowns = config['references']['KNOWNANCESTRY'],
-        dbsnp = config['references']['DBSNPALL'],
+        dbsnp = config['references']['DBSNP'],
         genome = config['references']['GENOME'],
         regions = config['references']['REGIONS'],
     shell: 
@@ -490,7 +496,7 @@ if batch_number == "1":
           set +u
           module load GATK/4.1.6.0-Java-1.8.0_92
           mkdir -p gVCFs/merged
-          gatk --java-options '-Xmx24g' CombineGVCFs --reference {params.genome} --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --variant {input.list} --variant {input.prev} --output {output.gzvcf} --intervals {params.chunk} --use-jdk-inflater --use-jdk-deflater
+          gatk --java-options '-Xmx24g' CombineGVCFs --reference {params.genome} --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --variant {input.list} --output {output.gzvcf} --intervals {params.chunk} --use-jdk-inflater --use-jdk-deflater
           """
 
 else:
@@ -501,8 +507,8 @@ else:
              index = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz.tbi",newID=list(dict_CIDR.keys())),
              prev = "/hpcdata/dir/HGSC_processing/wgs/gVCFs/cumulative/through_batch" + last_batch + "_{chunks}.g.vcf.gz"
       output:
-          gzvcf = "/data/GRIS_NCBR/COVID_WGS/hg38_gvcfs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz",
-          index = "/data/GRIS_NCBR/COVID_WGS/hg38_gvcfs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz.tbi",
+          gzvcf = "/hpcdata/dir/HGSC_processing/wgs/gVCFs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz",
+          index = "/hpcdata/dir/HGSC_processing/wgs/gVCFs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz.tbi",
       params: 
           rname = "mergegvcfs",genome = config['references']['GENOME'], chunk="{chunks}", batch=batch_name
       shell:
@@ -515,8 +521,8 @@ else:
 
 rule genotype:
     input: 
-        gzvcf = "/data/GRIS_NCBR/COVID_WGS/hg38_gvcfs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz",
-        index = "/data/GRIS_NCBR/COVID_WGS/hg38_gvcfs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz.tbi",
+        gzvcf = "/hpcdata/dir/HGSC_processing/wgs/gVCFs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz",
+        index = "/hpcdata/dir/HGSC_processing/wgs/gVCFs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz.tbi",
     output:
         vcf = "VCF/by_chunk/raw_variants_{chunks}.vcf.gz",
     params:
