@@ -23,7 +23,7 @@ if [ $# -ne 1 ]; then
     exit
 fi
 
-if [ $1 != "gris" ] && [ $1 != "npr" ] && [ $1 != "process" ] && [ $1 != "himem" ] ; then
+if [ $1 != "gris" ] && [ $1 != "npr" ] && [ $1 != "process" ] && [ $1 != "prep" ] ; then
     echo " " 
     echo "Invalid commandline option: $1"
     echo "Valid commandline options include: gris, npr, or process"
@@ -62,7 +62,7 @@ fi
 ##
 ## Make the new output directories
 ##
-for i in BAM VCF QC/TARGET QC/UCSC BATCH_QC HLA
+for i in BAM VCF QC/TARGET QC/UCSC BATCH_QC HLA snakejobs fastqs
 do
     if ! test -d $i; then
         echo "Creating output directory: $i"
@@ -90,8 +90,6 @@ then
     exit
 fi
 
-mkdir -p snakejobs
-
 ##
 ## Run snakemake
 ##
@@ -101,11 +99,10 @@ CLUSTER_OPTS="qsub -e snakejobs -o snakejobs -pe threaded {cluster.threads} -l {
 
 if [ "$1" == "npr" ]
 then
-    snakemake -npr --snakefile ${DIR}/csi_batch_processing_full_hg38.snakemake
+    snakemake -npr --snakefile CSI_wes_pipeline/scripts/csi_batch_processing_full_hg38.snakemake
 fi
 
 if [ "$1" == "process" ]
 then
-    snakemake --stats snakemake.stats --rerun-incomplete -j 150 --cluster "$CLUSTER_OPTS" --cluster-config /hpcdata/dir/CIDR_HG38/pipeline/processing_cluster_hg38.json --keep-going --snakefile ${DIR}/csi_batch_processing_full_hg38.snakemake > csi_batch_processing.log 2>&1 &
-    #snakemake --stats snakemake.stats --restart-times 1 --rerun-incomplete -j 100  --cluster "$CLUSTER_OPTS" --cluster-config ${DIR}/cluster.json --keep-going --snakefile ${DIR}/csi_batch_processing.snakemake > csi_batch_processing.log 2>&1 &
+    snakemake --stats snakemake.stats --rerun-incomplete -j 150 --cluster "$CLUSTER_OPTS" --cluster-config CSI_wes_pipeline/resources/processing_cluster_hg38.json --keep-going --snakefile CSI_wes_pipeline/scripts/csi_batch_processing_full_hg38.snakemake 2>&1|tee -a csi_batch_processing.log
 fi
