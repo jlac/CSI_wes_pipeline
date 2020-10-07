@@ -82,55 +82,39 @@ chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10"
 ##
 rule all:
     input:
-#        fastqc=expand(join("BATCH_QC/FastQC/{newID}.R1_fastqc.html"),newID=list(dict_CIDR.keys())),
-#        flagstats=expand(join("BATCH_QC/Flagstats/{newID}.flagstats"),newID=list(dict_CIDR.keys())),
-#        qualimap=expand(join("BATCH_QC/{newID}", "qualimapReport.html"),newID=list(dict_CIDR.keys())),
-#        vcftools = join("BATCH_QC/", batch_name + ".het"),
-#        collectvarintcallmetrics = join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics"),
-#        varianteval=expand(join("BATCH_QC/VariantEval/{newID}"),newID=list(dict_CIDR.keys())),
-#        snpeff= expand(join("BATCH_QC/SNPeff/{newID}/{newID}"),newID=list(dict_CIDR.keys())),
-#        bcftools=expand(join("BATCH_QC/BCFStats/{newID}"),newID=list(dict_CIDR.keys())),
-#        multiqc=join("BATCH_QC/QC_Report.html"),
-#        recalbam = expand("BAM/{newID}.recal.bam", newID=list(dict_CIDR.keys())),
+        fastqc=expand(join("BATCH_QC/FastQC/{newID}.R1_fastqc.html"),newID=list(dict_CIDR.keys())),
+        flagstats=expand(join("BATCH_QC/Flagstats/{newID}.flagstats"),newID=list(dict_CIDR.keys())),
+        qualimap=expand(join("BATCH_QC/{newID}", "qualimapReport.html"),newID=list(dict_CIDR.keys())),
+        vcftools = join("BATCH_QC/", batch_name + ".het"),
+        collectvarintcallmetrics = join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics"),
+        varianteval=expand(join("BATCH_QC/VariantEval/{newID}"),newID=list(dict_CIDR.keys())),
+        snpeff= expand(join("BATCH_QC/SNPeff/{newID}/{newID}"),newID=list(dict_CIDR.keys())),
+        bcftools=expand(join("BATCH_QC/BCFStats/{newID}"),newID=list(dict_CIDR.keys())),
+        multiqc=join("BATCH_QC/QC_Report.html"),
+        recalbam = expand("BAM/{newID}.recal.bam", newID=list(dict_CIDR.keys())),
 #        rehead=expand("BAM/{newID}.rehead.bam", newID=list(dict_CIDR.keys())),
-        bam = expand("BAM/{newID}.foo.bam", newID=list(dict_CIDR.keys())),
-#        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
+#        bam = expand("BAM/{newID}.foo.bam", newID=list(dict_CIDR.keys())),
+        vcf = join(dir_renamed, "VCF", batch_name + ".vcf.gz"),
 #        vci = join(dir_renamed, "VCF", batch_name + ".vcf.gz.tbi"),
 #        target = expand(join(dir_renamed, "QC", "TARGET", "{newID}.TARGET.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
 #        ucsc = expand(join(dir_renamed, "QC", "UCSC", "{newID}.UCSC.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
 #        last_ped = join(dir_peds, todays_date, "seqr_ped_batch" + last_batch + ".txt"),
-#        hla = expand(join(dir_renamed, "HLA", "{newID}", "hla", "R1_bestguess_G.txt"), newID = list(dict_CIDR.keys())),
+        hla = expand(join(dir_renamed, "HLA", "{newID}", "hla", "R1_bestguess_G.txt"), newID = list(dict_CIDR.keys())),
 #        concat_hla_cidr = join(dir_renamed, "hla_tab_cidr_batch" + batch_number + ".csv"),
 #        concat_hla_phenotips = join(dir_renamed, "hla_tab_phenotips_batch" + batch_number + ".csv"),
-#        admix_plot = join(dir_renamed, "BATCH_QC", "admixture", "admixture_mqc.png"),
-#        plota = join(dir_renamed, "inbreeding", "Heterozygous_to_Homozygous_Ratio_mqc.png"),
-#        plotb = join(dir_renamed, "inbreeding", "Mean_Homozygous_Tract_Length_mqc.png"),
+        admix_plot = join(dir_renamed, "BATCH_QC", "admixture", "admixture_mqc.png"),
+        plota = join(dir_renamed, "inbreeding", "Heterozygous_to_Homozygous_Ratio_mqc.png"),
+        plotb = join(dir_renamed, "inbreeding", "Mean_Homozygous_Tract_Length_mqc.png"),
 #        segs = expand(join(dir_renamed, "CNV_100", "genotyped_segments_{newID}.vcf"), newID = list(dict_CIDR.keys())),
 #        intervals = expand(join(dir_renamed, "CNV_100", "genotyped_intervals_{newID}.vcf"), newID = list(dict_CIDR.keys())),
 #        annot2 = expand(join(dir_renamed, "CNV_100", "{newID}", "{newID}.segments.annotations.tsv"), newID = list(dict_CIDR.keys())),
 #        candidates = expand(join(dir_renamed, "CNV_100", "{newID}", "{newID}.candidate.cnvs"), newID = list(dict_CIDR.keys())),
 #        fixed_cnv = expand(join(dir_renamed, "CNV_100", "{newID}", "{newID}_cnv.txt"), newID = list(dict_CIDR.keys())),
-#        final="VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
-
-###
-### Here's where the old QC rules start
-###
-
-#rule bam2fastq:
-#    input: bam = lambda w: [join(dir_rawdata, seqdir, dict_CIDR[w.newID] + seqfile)],
-#    output: dir="fastqs/{newID}",
-#    params: rname="bam2fastq",genome=config['references']['GENOME'],sample="{newID}"
-#    shell: """
-#           set +u
-#           module load GATK/4.1.6.0-Java-1.8.0_92
-#           mkdir -p fastqs
-#           mkdir -p fastqs/{params.sample}
-#           gatk SamToFastq --INPUT {input.bam} --OUTPUT_DIR {output.dir} -R {params.genome} --OUTPUT_PER_RG --COMPRESS_OUTPUTS_PER_RG --RG_TAG ID
-#           """
+        final="VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
 
 rule namesort:
     input: bam = lambda w: [join(dir_rawdata, seqdir, dict_CIDR[w.newID] + seqfile)],
-    output: "fastqs/{newID}.namesort.bam",
+    output: temp("fastqs/{newID}.namesort.bam"),
     params: rname="bam2fastq",genome=config['references']['GENOME'],sample="{newID}"
     shell: """
            set +u
@@ -140,11 +124,11 @@ rule namesort:
            """
 
 rule bam2fastq:
-    input: bam = "fastqs/{newID}.namesort.bam",
-    output: r1="fastqs/{newID}.R1.fastq.gz",
-            r2="fastqs/{newID}.R2.fastq.gz",
-            r0="fastqs/{newID}.other.fastq.gz",
-            singletons="fastqs/{newID}.singletons.fastq.gz",
+    input: bam =temp("fastqs/{newID}.namesort.bam"),
+    output: r1=temp("fastqs/{newID}.R1.fastq.gz"),
+            r2=temp("fastqs/{newID}.R2.fastq.gz"),
+            r0=temp("fastqs/{newID}.other.fastq.gz"),
+            singletons=temp("fastqs/{newID}.singletons.fastq.gz"),
     params: rname="bam2fastq",genome=config['references']['GENOME'],sample="{newID}"
     shell: """
            set +u
@@ -156,10 +140,10 @@ rule bam2fastq:
 rule trimmomatic:
     input:  r1="fastqs/{newID}.R1.fastq.gz",
             r2="fastqs/{newID}.R2.fastq.gz",
-    output: one="fastqs/{newID}.R1.trimmed.fastq.gz",
-            two="fastqs/{newID}.R1.trimmed.unpair.fastq.gz",
-            three="fastqs/{newID}.R2.trimmed.fastq.gz",
-            four="fastqs/{newID}.R2.trimmed.unpair.fastq.gz",
+    output: one=temp("fastqs/{newID}.R1.trimmed.fastq.gz"),
+            two=temp("fastqs/{newID}.R1.trimmed.unpair.fastq.gz"),
+            three=temp("fastqs/{newID}.R2.trimmed.fastq.gz"),
+            four=temp("fastqs/{newID}.R2.trimmed.unpair.fastq.gz"),
             err="fastqs/{newID}_run_trimmomatic.err"
     params: adapterfile=config['references']['trimmomatic.adapters'],rname="pl:trimmomatic"
     threads: 8
@@ -169,7 +153,7 @@ rule trimmomatic:
             java -jar $EBROOTTRIMMOMATIC/trimmomatic-0.36.jar PE -threads {threads} -phred33 {input[0]} {input[1]} {output.one} {output.two} {output.three} {output.four} ILLUMINACLIP:{params.adapterfile}:3:30:10 LEADING:10 TRAILING:10 SLIDINGWINDOW:4:20 MINLEN:20 2> {output.err}
             """
 
-rule fastqc_trimmed:
+rule fastqc:
     input:  "BAM/{newID}.recal.bam",
     output: "BAM/{newID}.recal_fastqc.html"
     params: adapters=config['references']['fastqc_adapters'],rname="pl:fastqc"
@@ -184,7 +168,7 @@ rule fastqc_trimmed:
 rule bwa_mem:
     input:  "fastqs/{newID}.R1.trimmed.fastq.gz",
             "fastqs/{newID}.R2.trimmed.fastq.gz",
-    output: "BAM/{newID}.foo.bam"
+    output: temp("BAM/{newID}.foo.bam")
     params: genome=config['references']['GENOME'],rname="pl:bwamem"
     shell:  """
             set +u
@@ -193,80 +177,22 @@ rule bwa_mem:
             bwa mem -M -C -t 8 {params.genome} {input} | /hpcdata/dir/software/samblaster/samblaster -M | samtools sort -@8 -m 2G - -o {output}
             """
 
-#rule picard_headers:
-#     input:  "BAM/{newID}.foo.bam"
-#     output: temp("BAM/{newID}.header.bam")
-#     params: sample = "{newID}",rname="headers"
-#     shell:  """
-#             module load picard/2.20.8
-#             java -Xmx24g -jar $PICARDJARPATH/picard.jar AddOrReplaceReadGroups I={input} O={output} RGID={params.sample} RGPL=illumina RGLB={params.sample} RGPU={params.sample} RGSM={params.sample} RGCN=cidr RGDS=wes Validation_Stringency=LENIENT
-#             """
-
-#rule novocraft_sort:
-#     input:  "BAM/{newID}.header.bam",
-#     output: temp("BAM/{newID}.sorted.bam")
-#     params: rname="sort"
-#     threads: 8
-#     shell:  """
-#             module load novocraft/3.08.02
-#             novosort -t /scratch -m 94G --threads {threads} -s -i -o {output} {input}
-#             """
-
-#rule picard_markdups:
-#     input:  "BAM/{newID}.sorted.bam"
-#     output: out = temp("BAM/{newID}.dedup.bam"),
-#             metrics = "BAM/{newID}.sorted.txt"
-#     params: rname="mkdup"
-#     shell:  """
-#             module load picard/2.20.8
-#             java -Xmx24g -jar $PICARDJARPATH/picard.jar MarkDuplicates I={input} O={output.out} M={output.metrics} REMOVE_DUPLICATES=FALSE AS=TRUE PG='null' Validation_Stringency=LENIENT
-#             """
-
-#rule gatk_realign:
-#        input:  "BAM/{newID}.dedup.bam"
-#        output: re=temp("BAM/{newID}.realign.bam"),
-#                int="BAM/{newID}.realign.intervals"
-#        params: genome=config['references']['GENOME'],knownindels=config['references']['KNOWNINDELS'],rname="realign"
-#        shell:  """
-#                module load samtools/1.8
-#                samtools index {input}
-#                module load GATK/4.1.6.0
-#                java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T RealignerTargetCreator -I {input} -R {params.genome} --use_jdk_inflater --use_jdk_deflater {params.knownindels} -o {output.int}
-#                java -Xmx48g -Djava.io.tmpdir=/lscratch/$SLURM_JOBID -jar $GATK_JAR -T IndelRealigner -R {params.genome} -I {input} --use_jdk_inflater --use_jdk_deflater -targetIntervals {output.int} {params.knownindels} -o {output.re}
-#                """
-
-#rule mergebam:
-#      input:  lambda w: [join("BAM/{ptipID}", dict_RGs[w.ptipID] + ".bam")]
-#      output: bam="BAM/{newID}.rehead.bam",
-#      params: rname="header",oldname=lambda w: dict_CIDR[w.newID],sample="{newID}"
-#      threads: 24
-#      shell:  """
-#              set +u
-#              module load samtools
-#              samtools view -H {input.oldbam} | grep \'@RG\' | grep -v \'@PG\' | sed -e 's/{params.oldname}/{params.sample}/g' | perl -pe 's/\s+/\n/g' > BAM/{params.sample}.RG.txt
-#              ID="`grep 'ID:' BAM/{params.sample}.RG.txt | cut -d':' -f2`"
-#              echo $ID
-#              PL="`grep 'PL:' BAM/{params.sample}.RG.txt | cut -d':' -f2`"
-#              echo $PL
-#              PU="`grep 'PU:' BAM/{params.sample}.RG.txt | cut -d':' -f2`"
-#              echo $PU
-#              LB="`grep 'LB:' BAM/{params.sample}.RG.txt | cut -d':' -f2`"
-#              echo $LB
-#              DS="`grep 'DS:' BAM/{params.sample}.RG.txt | cut -d':' -f2`"
-#              echo $DS
-#              DT="`grep 'DT:' BAM/{params.sample}.RG.txt | cut -d':' -f2,3,4`"
-#              echo $DT
-#              SM="`grep 'SM:' BAM/{params.sample}.RG.txt | cut -d':' -f2`"
-#              echo $SM
-#              CN="`grep 'CN:' BAM/{params.sample}.RG.txt | cut -d':' -f2`"
-#              echo $CN
-#              module load GATK/4.1.6.0-Java-1.8.0_92
-#              gatk AddOrReplaceReadGroups --INPUT {input.newbam} --RGID $ID --RGPL $PL --RGPU $PU --RGLB $PU --RGDS $DS --RGDT $DT --RGSM $SM --RGCN $CN --OUTPUT {output.bam}
-#              samtools index {output.bam}
-#              """
+rule rehead:
+     input:  newbam="BAM/{newID}.foo.bam",
+             oldbam=lambda w: [join(dir_rawdata, seqdir, dict_CIDR[w.newID] + seqfile)],
+     output: header=temp("BAM/{newID}_header.sam"),
+             bam=temp("BAM/{newID}.header.bam")
+     params: sample = "{newID}",rname="rehead"
+     shell:  """
+             module load samtools/1.9-goolf-1.7.20
+             samtools index {input.newbam}
+             samtools view -H {input.oldbam} | sed -e 's/SM:{params.oldsample}/SM:{params.sample}/g' > {output.header}
+             samtools reheader -P {output.header} {input.newbam} {output.bam}
+             samtools index {output.bam}
+             """
 
 rule gatk_recal:
-      input:  "BAM/{newID}.foo.bam"
+      input:  "BAM/{newID}.header.bam"
       output: bam="BAM/{newID}.recal.bam",
               re=temp("BAM/{newID}_recal_data.grp")
       params: genome=config['references']['GENOME'],knowns=config['references']['KNOWNRECAL'],rname="recal"
