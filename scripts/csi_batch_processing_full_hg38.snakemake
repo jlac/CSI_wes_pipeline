@@ -124,7 +124,7 @@ rule namesort:
            """
 
 rule bam2fastq:
-    input: bam =temp("fastqs/{newID}.namesort.bam"),
+    input:  bam="fastqs/{newID}.namesort.bam",
     output: r1=temp("fastqs/{newID}.R1.fastq.gz"),
             r2=temp("fastqs/{newID}.R2.fastq.gz"),
             r0=temp("fastqs/{newID}.other.fastq.gz"),
