@@ -184,6 +184,8 @@ rule rehead:
              bam=temp("BAM/{newID}.header.bam")
      params: sample = "{newID}",oldsample=lambda w: dict_CIDR[w.newID],rname="rehead"
      shell:  """
+             set +u
+             export TODAY=`date +"%Y%m%d"`
              module load samtools/1.9-goolf-1.7.20
              samtools index {input.newbam}
              samtools view -H {input.oldbam} | sed -e 's/SM:{params.oldsample}/SM:{params.sample}/g' > {output.header}
