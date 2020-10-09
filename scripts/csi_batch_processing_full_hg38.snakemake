@@ -175,21 +175,27 @@ rule bwa_mem:
             module load samtools/1.9-goolf-1.7.20
             module load bwa/0.7.17-goolf-1.7.20
             bwa mem -M -C -t 8 {params.genome} {input} | /hpcdata/dir/software/samblaster/samblaster -M | samtools sort -@8 -m 2G - -o {output}
+            samtools index {output}
             """
 
 rule rehead:
      input:  newbam="BAM/{newID}.foo.bam",
              oldbam=lambda w: [join(dir_rawdata, seqdir, dict_CIDR[w.newID] + seqfile)],
-     output: header=temp("BAM/{newID}_header.sam"),
+     output: oldheader=temp("BAM/{newID}_oldheader.sam"),
+             newheader=temp("BAM/{newID}_newheader.sam"),
+             fixedheader=temp("BAM/{newID}_fixedheader.sam"),
              bam=temp("BAM/{newID}.header.bam")
      params: sample = "{newID}",oldsample=lambda w: dict_CIDR[w.newID],rname="rehead"
      shell:  """
              set +u
              export TODAY=`date +"%Y%m%d"`
              module load samtools/1.9-goolf-1.7.20
-             samtools index {input.newbam}
-             samtools view -H {input.oldbam} | sed -e 's/SM:{params.oldsample}/SM:{params.sample}/g' > {output.header}
-             samtools reheader -P {output.header} {input.newbam} {output.bam}
+             samtools view -H {input.oldbam} | sed -e 's/SM:{params.oldsample}/SM:{params.sample}/g' > {output.oldheader}
+             samtools view -H {input.newbam} > {output.newheader}
+             grep -v '@PG' {output.newheader} >> {output.fixedheader}
+             grep -v '@PG' {output.oldheader} | grep '@RG' >> {output.fixedheader}
+             grep '@PG' {output.newheader} >> {output.fixedheader}
+             samtools reheader -P {output.fixedheader} {input.newbam} > {output.bam}
              samtools index {output.bam}
              """
 
