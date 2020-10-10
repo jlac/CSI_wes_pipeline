@@ -756,7 +756,7 @@ rule hla:
     shell: 
         """
         set +u
-        module load HLA-PRG-LA/1.0.1
+        module load HLA-LA/1.0
         mkdir -p HLA
         HLA-LA.pl --BAM {input.bam} --graph PRG_MHC_GRCh38_withIMGT  --sampleID {wildcards.newID} --maxThreads 7 --workingDir {params.hladir}
         """

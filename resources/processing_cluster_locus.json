@@ -2,8 +2,8 @@
       "__default__": {
               "partition": "avx2",
               "threads":"4",
-              "mem": "32G",
-              "vmem":"8G"
+              "mem": "16G",
+              "vmem":"4G"
       },
 
       "bam": {
