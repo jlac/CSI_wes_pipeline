@@ -35,7 +35,9 @@ if int(batch_number) < 10:
     batch_name0 = "BATCH0" + batch_number
 else:
     batch_name0 = "BATCH" + batch_number
-    
+
+dir_hla_master = "/sysapps/cluster/software/HLA-LA/1.0/HLA-LA-master"
+
 #dir_rawvcf = join(dir_rawdata, "MultiSampleVCF", "withGenotypeRefinement")
 #VCF = [f for f in os.listdir(dir_rawvcf) if re.match(r'.*.vcf.gz$', f)][0]
 #VCF = join(dir_rawvcf, VCF)
