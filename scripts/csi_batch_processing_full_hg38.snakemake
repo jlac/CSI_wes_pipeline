@@ -755,6 +755,7 @@ rule hla:
     params: 
         rname = "hla",
         hladir = join(dir_renamed, "HLA")
+        dir=dir_renamed
     shell: 
         """
         set +u
@@ -763,7 +764,7 @@ rule hla:
         module load samtools
         mkdir -p HLA
         cd {dir_hla_master}
-        ./HLA-LA.pl --BAM {input.bam} --graph ../../../../../../hpcdata/dir/CSI_DATA_PROCESSED/references/graphs/PRG_MHC_GRCh38_withIMGT  --sampleID {wildcards.newID} --maxThreads 7 --picard_sam2fastq_bin /sysapps/cluster/software/picardtools/1.119/SamToFastq.jar --workingDir {params.hladir}
+        ./HLA-LA.pl --BAM {params.dir}/{input.bam} --graph ../../../../../../hpcdata/dir/CSI_DATA_PROCESSED/references/graphs/PRG_MHC_GRCh38_withIMGT  --sampleID {wildcards.newID} --maxThreads 7 --picard_sam2fastq_bin /sysapps/cluster/software/picardtools/1.119/SamToFastq.jar --workingDir {params.hladir}
         """
         
 ##
