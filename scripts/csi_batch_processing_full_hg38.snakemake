@@ -754,7 +754,7 @@ rule hla:
         hla = join(dir_renamed, "HLA", "{newID}", "hla", "R1_bestguess_G.txt"),
     params: 
         rname = "hla",
-        hladir = join(dir_renamed, "HLA")
+        hladir = join(dir_renamed, "HLA"),
         dir=dir_renamed
     shell: 
         """

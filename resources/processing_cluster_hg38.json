@@ -1,6 +1,6 @@
 {
       "__default__": {
-              "partition": "avx2",
+              "partition": "quick",
               "threads":"4",
               "mem": "16G",
               "vmem":"4G"
