@@ -267,7 +267,7 @@ rule Gatk_SelectVariants:
 	shell: """
 	       set +u
 	       module load GATK/3.8.1-Java-1.8.0_92
-	       java -Xmx12g $EBROOTGATK/GenomeAnalysisTK.jar SelectVariants -R {params.genome} -o {output} -V {input} --sample_name {params.Sname} --ALLOW_NONOVERLAPPING_COMMAND_LINE_SAMPLES --excludeNonVariants
+	       java -Xmx12g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T SelectVariants -R {params.genome} -o {output} -V {input} --sample_name {params.Sname} --ALLOW_NONOVERLAPPING_COMMAND_LINE_SAMPLES --excludeNonVariants
 	       """
 
 rule bcftools:
@@ -288,7 +288,7 @@ rule varianteval:
 	shell: """
 	       set +u
 	       module load module load GATK/3.8.1-Java-1.8.0_92
-	       java -Xmx12g $EBROOTGATK/GenomeAnalysisTK.jar VariantEval -R {params.genome} -o {output} --dbsnp {params.vcf} --eval {input} -nt {threads}
+	       java -Xmx12g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T VariantEval -R {params.genome} -o {output} --dbsnp {params.vcf} --eval {input} -nt {threads}
 	       """
 
 #rule snpeff:
@@ -335,16 +335,16 @@ rule admixture:
            module load vcftools/0.1.16
            vcftools --gzvcf {input.vcf} --remove-indels --max-missing 1 --recode --recode-INFO-all --out BATCH_QC/admixture/filtered
            module purge
-           module load GATK/3.8-1
-           GATK -m 12g CombineVariants -R {params.genome} --genotypemergeoption UNSORTED -o {output.mergedvcf} --variant {output.filtvcf} --variant {params.knowns} --minimumN 2 -nt 4
+           module load GATK/3.8.1-Java-1.8.0_92
+           java -Xmx12g -jar $EBROOTGATK/GenomeAnalysisTK.jar -T CombineVariants -R {params.genome} --genotypemergeoption UNSORTED -o {output.mergedvcf} --variant {output.filtvcf} --variant {params.knowns} --minimumN 2 -nt 4
            module purge
            module load plink/1.9.0-beta4.4
            plink --noweb --recode12 --snps-only --maf 0.05 --out BATCH_QC/admixture/merged.filtered.knowns --vcf {output.mergedvcf}
-           perl /data/NCBR/projects/csi_test_batch/resources/software/admixture_prep.pl /data/NCBR/projects/csi_test_batch/resources/1k_genomes_superpop_key.txt BATCH_QC/admixture/merged.filtered.knowns.pop BATCH_QC/admixture/merged.filtered.knowns.ped
-           /data/CCBR_Pipeliner/db/PipeDB/bin/admixture_linux-1.3.0/admixture BATCH_QC/admixture/merged.filtered.knowns.ped 5 --supervised -j4
+           perl CSI_wes_pipeline/scripts/admixture_prep.pl CSI_wes_pipeline/resources/1k_genomes_superpop_key.txt BATCH_QC/admixture/merged.filtered.knowns.pop BATCH_QC/admixture/merged.filtered.knowns.ped
+           /hpcdata/dir/software/admixture_linux-1.3.0/admixture BATCH_QC/admixture/merged.filtered.knowns.ped 5 --supervised -j4
            mv merged.filtered.knowns.5.P BATCH_QC/admixture/merged.filtered.knowns.5.P
            mv merged.filtered.knowns.5.Q BATCH_QC/admixture/merged.filtered.knowns.5.Q
-           perl /data/NCBR/projects/csi_test_batch/resources/software/admixture_post.pl /data/NCBR/projects/csi_test_batch/resources/1k_genomes_superpop_key.txt {output.admixtable} BATCH_QC/admixture/merged.filtered.knowns.5.Q hg19 BATCH_QC/admixture/merged.filtered.knowns.ped
+           perl CSI_wes_pipeline/scripts/admixture_post.pl CSI_wes_pipeline/resources/1k_genomes_superpop_key.txt {output.admixtable} BATCH_QC/admixture/merged.filtered.knowns.5.Q hg19 BATCH_QC/admixture/merged.filtered.knowns.ped
            """
 
 ###
@@ -358,7 +358,7 @@ rule admixplot:
         """
         set +u
         module load R
-        Rscript /data/NCBR/projects/csi_test_batch/resources/software/admixplot.R
+        Rscript CSI_wes_pipeline/scripts/admixplot.R
         """
 
 #Need to fix CNV calling for hg38
@@ -462,32 +462,31 @@ rule inbreeding:
         knowns = config['references']['KNOWNANCESTRY'],
         genome = config['references']['GENOME'],
         regions = config['references']['REGIONS'],
-        vcf=config['references']['DBSNP'],
+        dbsnp=config['references']['DBSNP'],
     shell: 
            """
            set +u
-           module load GATK/3.8-1
+           module load GATK/3.8.1-Java-1.8.0_92
            mkdir -p inbreeding
-           GATK -m 12g SelectVariants -R {params.genome} -L {params.regions} -V {input.vcf} -o {output.knownsvcf} --concordance {params.knowns}
+           java -jar $EBROOTGATK/GenomeAnalysisTK.jar -T SelectVariants -R {params.genome} -L {params.regions} -V {input.vcf} -o {output.knownsvcf} --concordance {params.knowns}
            module purge
-           module load vcftools/0.1.16
+           module load vcftools/0.1.15-goolf-1.7.20-Perl-5.22.2
            vcftools --vcf {output.knownsvcf} --remove-indels --min-alleles 2 --max-alleles 2 --max-missing 1 --recode --recode-INFO-all --out inbreeding/filtered.known.sites
            module purge
-           module load bcftools/1.9
+           module load bcftools/1.9-goolf-1.7.20
            bgzip inbreeding/filtered.known.sites.recode.vcf
            tabix -p vcf inbreeding/filtered.known.sites.recode.vcf.gz
            module purge
-           module load picard/2.20.8
-           java -Xmx24g -jar $PICARDJARPATH/picard.jar CollectVariantCallingMetrics INPUT=inbreeding/filtered.known.sites.recode.vcf.gz OUTPUT=inbreeding/picardMetrics DBSNP={params.vcf} THREAD_COUNT=8 Validation_Stringency=SILENT
+           module load picard/2.22.7-Java-1.8.0_92
+           java -jar $EBROOTPICARD/picard.jar CollectVariantCallingMetrics INPUT=inbreeding/filtered.known.sites.recode.vcf.gz OUTPUT=inbreeding/picardMetrics DBSNP={params.dbsnp} THREAD_COUNT=8
            module purge
-           module load plink/1.9.0-beta4.4
+           module load plink/1.90-x86_64-beta
            plink --noweb --recode12 --snps-only --out inbreeding/filtered.known.sites --vcf inbreeding/filtered.known.sites.recode.vcf.gz
            module purge
-           module load plink/1.07
-           plink --file inbreeding/filtered.known.sites --noweb --homozyg --out inbreeding/ROH
+           /hpcdata/dir/software/plink-1.07-x86_64/plink --file inbreeding/filtered.known.sites --noweb --homozyg --out inbreeding/ROH
            module purge
-           module load R/3.6
-           Rscript /data/NCBR/projects/csi_test_batch/resources/software/inbreedingPlot.R
+           module load R
+           Rscript CSI_wes_pipeline/scripts/inbreedingPlot.R
            """
 
 rule haplotypecaller:
