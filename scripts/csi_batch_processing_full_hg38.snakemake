@@ -101,7 +101,7 @@ rule all:
 #        target = expand(join(dir_renamed, "QC", "TARGET", "{newID}.TARGET.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
 #        ucsc = expand(join(dir_renamed, "QC", "UCSC", "{newID}.UCSC.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
 #        last_ped = join(dir_peds, todays_date, "seqr_ped_batch" + last_batch + ".txt"),
-        hla = expand(join(dir_renamed, "HLA", "{newID}", "hla", "R1_bestguess_G.txt"), newID = list(dict_CIDR.keys())),
+#        hla = expand(join(dir_renamed, "HLA", "{newID}", "hla", "R1_bestguess_G.txt"), newID = list(dict_CIDR.keys())),
 #        concat_hla_cidr = join(dir_renamed, "hla_tab_cidr_batch" + batch_number + ".csv"),
 #        concat_hla_phenotips = join(dir_renamed, "hla_tab_phenotips_batch" + batch_number + ".csv"),
         admix_plot = join(dir_renamed, "BATCH_QC", "admixture", "admixture_mqc.png"),
