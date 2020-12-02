@@ -6,7 +6,6 @@
               "gres": "lscratch:256",
               "time": "4-00:00:00",
       },
-
       "bam": {
               "threads": "2",
               "time": "12:00:00",
@@ -16,7 +15,6 @@
               "time": "12:00:00",
               "mem": "72G",
               "gres": "lscratch:256",
-
       },
       "trimmomatic": {
               "threads": "32",

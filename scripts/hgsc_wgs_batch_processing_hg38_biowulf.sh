@@ -19,12 +19,12 @@ echo "Running script from ${DIR}"
 ##
 if [ $# -ne 2 ]; then
     echo " " 
-    echo "Requires a single commandline argument: gris, npr, or process"
+    echo "Requires a single commandline argument: npr or process"
     echo " " 
     exit
 fi
 
-if [ $2 != "gris" ] && [ $2 != "npr" ] && [ $2 != "process" ] && [ $2 != "himem" ] ; then
+if [ $2 != "npr" ] && [ $2 != "process" ] ; then
     echo " " 
     echo "Invalid commandline option: $2"
     echo "Valid commandline options include: gris, npr, or process"
@@ -36,10 +36,10 @@ fi
 ## Get batch and batch number
 ##
 batchdir=`pwd`
-batch=`echo $batchdir | sed -e 's/^.*\///' `
-echo "BATCH: $batch"
-batchnumber=`echo $batch | sed -e 's/BATCH//' -e 's/^0//' `
-echo "Processing Batch $batchnumber"
+#batch=`echo $batchdir | sed -e 's/^.*\///' `
+#echo "BATCH: $batch"
+#batchnumber=`echo $batch | sed -e 's/BATCH//' -e 's/^0//' `
+#echo "Processing Batch $batchnumber"
 
 ##
 ## Find the raw directory
@@ -63,7 +63,7 @@ fi
 ##
 ## Make the new output directories
 ##
-for i in BAM VCF QC/TARGET QC/UCSC BATCH_QC HLA inbreeding CNV_100
+for i in BAM VCF BATCH_QC HLA inbreeding snakejobs
 do
     if ! test -d $i; then
         echo "Creating output directory: $i"
@@ -80,19 +80,6 @@ SCRIPTPATH=`dirname $SCRIPT`
 
 echo $SCRIPT
 echo $SCRIPTPATH
-
-##
-## Run csi_to_gris.py
-##
-if [ "$2" == "gris" ] 
-then
-    echo "Running csi_to_gris"
-    python3 "$SCRIPTPATH/"csi_to_gris_hgsc.py -b $batchnumber -d $raw_dir -s $raw_dir/sample_key.xlsx
-    exit
-fi
-
-mkdir -p snakejobs
-mkdir -p BATCH_QC
 
 ##
 ## Run snakemake
