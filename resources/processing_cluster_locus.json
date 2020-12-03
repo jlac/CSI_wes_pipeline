@@ -9,7 +9,16 @@
       "bam": {
               "threads": "2"
       },
-
+      "namesort": {
+              "threads": "8",
+              "mem": "32G",
+              "vmem":"4G",
+      },
+      "trimmomatic": {
+              "threads": "12",
+              "mem": "24G",
+              "vmem":"2G",
+      },
       "qc": {
               "threads": "2",
               "partition": "quick",
