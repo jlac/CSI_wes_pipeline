@@ -88,11 +88,11 @@ rule all:
 rule namesort:
     input: bam = lambda w: [join(dir_rawdata, dict_CIDR[w.newID] + ".bam")],
     output: temp("fastqs/{newID}.namesort.bam"),
-    params: rname="bam2fastq",genome=config['references']['GENOME']
+    params: rname="bam2fastq"
     shell: """
          module load samtools/1.11
          mkdir -p fastqs
-         samtools sort -n -@ 15 --reference {params.genome} -o {output} {input.bam}
+         samtools sort -n -@ 15 -o {output} {input.bam}
          """
 
 rule bam2fastq:
