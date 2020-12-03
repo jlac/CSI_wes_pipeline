@@ -90,10 +90,10 @@ CLUSTER_OPTS="sbatch --gres {cluster.gres} --cpus-per-task {cluster.threads} -p 
 
 if [ "$2" == "npr" ]
 then
-    snakemake -npr --snakefile CSI_wes_pipeline/scripts/hgsc_wgs_batch_processing_hg38_biowulf.snakemake
+    snakemake -npr --snakefile CSI_wes_pipeline/scripts/wgs_batch_processing_hg38_biowulf.snakemake
 fi
 
 if [ "$2" == "process" ]
 then
-    snakemake --stats snakemake.stats --rerun-incomplete -j 150 --cluster "$CLUSTER_OPTS" --cluster-config CSI_wes_pipeline/resources/biowulf_processing_cluster_hg38.json --keep-going --snakefile CSI_wes_pipeline/scripts/hgsc_wgs_batch_processing_hg38_biowulf.snakemake 2>&1|tee -a csi_batch_processing.log
+    snakemake --stats snakemake.stats --rerun-incomplete -j 150 --cluster "$CLUSTER_OPTS" --cluster-config CSI_wes_pipeline/resources/biowulf_processing_cluster_hg38.json --keep-going --snakefile CSI_wes_pipeline/scripts/wgs_batch_processing_hg38_biowulf.snakemake 2>&1|tee -a csi_batch_processing.log
 fi
