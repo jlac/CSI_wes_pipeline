@@ -32,7 +32,7 @@ dir_rawdata = join(dir_renamed, "rawdata")
 dir_hla_master = "/sysapps/cluster/software/HLA-LA/1.0/HLA-LA-master"
 #batch_number = re.sub("^.*WGS","",dir_renamed)
 #print(batch_number)
-#batch_name = "WGS"
+batch_name = "WGS"
 #if int(batch_number) < 10:
 #    batch_name0 = "WGS_BATCH" + batch_number
 #else:
@@ -57,6 +57,7 @@ print(dict_CIDR)
 configfile:"CSI_wes_pipeline/resources/processing_references_biowulf_hg38.json"
 
 chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chr20","chr21","chr22","chrX","chrY","chrM"]
+chunks = ['chr1:1-30000001','chr1:30000001-60000001','chr1:60000001-90000001','chr1:90000001-120000001','chr1:120000001-150000001','chr1:150000001-180000001','chr1:180000001-210000001','chr1:210000001-240000001','chr1:240000001-248956422','chr2:1-30000001','chr2:30000001-60000001','chr2:60000001-90000001','chr2:90000001-120000001','chr2:120000001-150000001','chr2:150000001-180000001','chr2:180000001-210000001','chr2:210000001-240000001','chr2:240000001-242193529','chr3:1-30000001','chr3:30000001-60000001','chr3:60000001-90000001','chr3:90000001-120000001','chr3:120000001-150000001','chr3:150000001-180000001','chr3:180000001-198295559','chr4:1-30000001','chr4:30000001-60000001','chr4:60000001-90000001','chr4:90000001-120000001','chr4:120000001-150000001','chr4:150000001-180000001','chr4:180000001-190214555','chr5:1-30000001','chr5:30000001-60000001','chr5:60000001-90000001','chr5:90000001-120000001','chr5:120000001-150000001','chr5:150000001-180000001','chr5:180000001-181538259','chr6:1-30000001','chr6:30000001-60000001','chr6:60000001-90000001','chr6:90000001-120000001','chr6:120000001-150000001','chr6:150000001-170805979','chr7:1-30000001','chr7:30000001-60000001','chr7:60000001-90000001','chr7:90000001-120000001','chr7:120000001-150000001','chr7:150000001-159345973','chr8:1-30000001','chr8:30000001-60000001','chr8:60000001-90000001','chr8:90000001-120000001','chr8:120000001-145138636','chr9:1-30000001','chr9:30000001-60000001','chr9:60000001-90000001','chr9:90000001-120000001','chr9:120000001-138394717','chr10:1-30000001','chr10:30000001-60000001','chr10:60000001-90000001','chr10:90000001-120000001','chr10:120000001-133797422','chr11:1-30000001','chr11:30000001-60000001','chr11:60000001-90000001','chr11:90000001-120000001','chr11:120000001-135086622','chr12:1-30000001','chr12:30000001-60000001','chr12:60000001-90000001','chr12:90000001-120000001','chr12:120000001-133275309','chr13:1-30000001','chr13:30000001-60000001','chr13:60000001-90000001','chr13:90000001-114364328','chr14:1-30000001','chr14:30000001-60000001','chr14:60000001-90000001','chr14:90000001-107043718','chr15:1-30000001','chr15:30000001-60000001','chr15:60000001-90000001','chr15:90000001-101991189','chr16:1-30000001','chr16:30000001-60000001','chr16:60000001-90000001','chr16:90000001-90338345','chr17:1-30000001','chr17:30000001-60000001','chr17:60000001-83257441','chr18:1-30000001','chr18:30000001-60000001','chr18:60000001-80373285','chr19:1-30000001','chr19:30000001-58617616','chr20:1-30000001','chr20:30000001-60000001','chr20:60000001-64444167','chr21:1-30000001','chr21:30000001-46709983','chr22:1-30000001','chr22:30000001-50818468','chrX:1-30000001','chrX:30000001-60000001','chrX:60000001-90000001','chrX:90000001-120000001','chrX:120000001-150000001','chrX:150000001-156040895','chrY:1-30000001','chrY:30000001-57227415','chrM:1-16569']
 
 ##
 ## Set rule all
@@ -89,11 +90,10 @@ rule namesort:
     output: temp("fastqs/{newID}.namesort.bam"),
     params: rname="bam2fastq",genome=config['references']['GENOME']
     shell: """
-           
-           module load samtools/1.11
-           mkdir -p fastqs
-           samtools sort -n -@ 15 --reference {params.genome} -o {output} {input.bam}
-           """
+         module load samtools/1.11
+         mkdir -p fastqs
+         samtools sort -n -@ 15 --reference {params.genome} -o {output} {input.bam}
+         """
 
 rule bam2fastq:
     input: bam = "fastqs/{newID}.namesort.bam",
@@ -251,8 +251,8 @@ rule samtools_flagstats:
            """
 
 rule vcftools:
-    input: "VCF/" + batch_name + ".vcf.gz",
-    output: join("BATCH_QC/", batch_name + ".het"),
+    input: "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
+    output: join("BATCH_QC/wgs_variants.het"),
     params: batch=batch_name,rname="vcftools"
     shell: """
            module load vcftools/0.1.16
@@ -260,7 +260,7 @@ rule vcftools:
            """
 
 rule collectvariantcallmetrics:
-    input: "VCF/" + batch_name + ".vcf.gz",
+    input: "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
     output: join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics")
     params: vcf=config['references']['DBSNP'],batch=batch_name,rname="varcallmetrics"
     shell: """
@@ -269,7 +269,7 @@ rule collectvariantcallmetrics:
            """
 
 rule Gatk_SelectVariants:
-	input: "VCF/" + batch_name + ".vcf.gz",
+	input: "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
 	output: temp(join("BATCH_QC/{newID}.vcf.gz"))
 	params: genome=config['references']['GENOME'], Sname = "{newID}", rname="varselect"
 	shell:"""
@@ -330,7 +330,7 @@ rule multiqc:
 ###
 rule admixture:
     input: 
-        vcf = "VCF/" + batch_name + ".vcf.gz",
+        vcf = "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
     output: 
         filtvcf = temp(join(dir_renamed, "BATCH_QC", "admixture", "filtered.recode.vcf")),
         mergedvcf = temp(join(dir_renamed, "BATCH_QC", "admixture", "merged.knowns.vcf")),
@@ -376,7 +376,7 @@ rule admixplot:
 ###
 rule inbreeding:
     input: 
-        vcf = "VCF/" + batch_name + ".vcf.gz",
+        vcf = "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
     output: 
         knownsvcf = temp(join(dir_renamed, "inbreeding", "known.sites.vcf")),
         filtvcf = temp(join(dir_renamed, "inbreeding", "filtered.known.sites.recode.vcf.gz")),
@@ -406,9 +406,6 @@ rule inbreeding:
            module load R/3.6
            Rscript /data/GRIS_NCBR/resources/software/inbreedingPlot.R
            """
-
-chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chr20","chr21","chr22","chrX","chrY","chrM"]
-chunks = ['chr1:1-30000001','chr1:30000001-60000001','chr1:60000001-90000001','chr1:90000001-120000001','chr1:120000001-150000001','chr1:150000001-180000001','chr1:180000001-210000001','chr1:210000001-240000001','chr1:240000001-248956422','chr2:1-30000001','chr2:30000001-60000001','chr2:60000001-90000001','chr2:90000001-120000001','chr2:120000001-150000001','chr2:150000001-180000001','chr2:180000001-210000001','chr2:210000001-240000001','chr2:240000001-242193529','chr3:1-30000001','chr3:30000001-60000001','chr3:60000001-90000001','chr3:90000001-120000001','chr3:120000001-150000001','chr3:150000001-180000001','chr3:180000001-198295559','chr4:1-30000001','chr4:30000001-60000001','chr4:60000001-90000001','chr4:90000001-120000001','chr4:120000001-150000001','chr4:150000001-180000001','chr4:180000001-190214555','chr5:1-30000001','chr5:30000001-60000001','chr5:60000001-90000001','chr5:90000001-120000001','chr5:120000001-150000001','chr5:150000001-180000001','chr5:180000001-181538259','chr6:1-30000001','chr6:30000001-60000001','chr6:60000001-90000001','chr6:90000001-120000001','chr6:120000001-150000001','chr6:150000001-170805979','chr7:1-30000001','chr7:30000001-60000001','chr7:60000001-90000001','chr7:90000001-120000001','chr7:120000001-150000001','chr7:150000001-159345973','chr8:1-30000001','chr8:30000001-60000001','chr8:60000001-90000001','chr8:90000001-120000001','chr8:120000001-145138636','chr9:1-30000001','chr9:30000001-60000001','chr9:60000001-90000001','chr9:90000001-120000001','chr9:120000001-138394717','chr10:1-30000001','chr10:30000001-60000001','chr10:60000001-90000001','chr10:90000001-120000001','chr10:120000001-133797422','chr11:1-30000001','chr11:30000001-60000001','chr11:60000001-90000001','chr11:90000001-120000001','chr11:120000001-135086622','chr12:1-30000001','chr12:30000001-60000001','chr12:60000001-90000001','chr12:90000001-120000001','chr12:120000001-133275309','chr13:1-30000001','chr13:30000001-60000001','chr13:60000001-90000001','chr13:90000001-114364328','chr14:1-30000001','chr14:30000001-60000001','chr14:60000001-90000001','chr14:90000001-107043718','chr15:1-30000001','chr15:30000001-60000001','chr15:60000001-90000001','chr15:90000001-101991189','chr16:1-30000001','chr16:30000001-60000001','chr16:60000001-90000001','chr16:90000001-90338345','chr17:1-30000001','chr17:30000001-60000001','chr17:60000001-83257441','chr18:1-30000001','chr18:30000001-60000001','chr18:60000001-80373285','chr19:1-30000001','chr19:30000001-58617616','chr20:1-30000001','chr20:30000001-60000001','chr20:60000001-64444167','chr21:1-30000001','chr21:30000001-46709983','chr22:1-30000001','chr22:30000001-50818468','chrX:1-30000001','chrX:30000001-60000001','chrX:60000001-90000001','chrX:90000001-120000001','chrX:120000001-150000001','chrX:150000001-156040895','chrY:1-30000001','chrY:30000001-57227415','chrM:1-16569']
 
 rule haplotypecaller:
     input: 
@@ -651,7 +648,7 @@ rule smoove_paste:
 
 rule canvas_wgs_germ:
     input: bam="BAM/{newID}.recal.bam",
-           vcf="BATCH_QC/{newID}.vcf.gz",
+           vcf="VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
     output: vcf="CANVAS/{newID}/CNV.vcf.gz",index="BAM/{newID}.recal.bam.bai",
     params: genome=config['references']['CANVASGENOME'],ploidy=config['references']['CANVASPLOIDY'],sample="{newID}",kmer=config['references']['CANVASKMER'],filter=config['references']['CANVASFILTER'],balleles=config['references']['CANVASBALLELES'],rname="canvas"
     shell: """
