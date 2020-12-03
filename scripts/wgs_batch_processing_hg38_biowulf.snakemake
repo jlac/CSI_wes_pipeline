@@ -30,18 +30,18 @@ import datetime
 dir_renamed = os.getcwd()
 dir_rawdata = join(dir_renamed, "rawdata")
 dir_hla_master = "/sysapps/cluster/software/HLA-LA/1.0/HLA-LA-master"
-batch_number = re.sub("^.*WGS","",dir_renamed)
-print(batch_number)
-batch_name = "WGS" + batch_number
-if int(batch_number) < 10:
-    batch_name0 = "WGS_BATCH" + batch_number
-else:
-    batch_name0 = "WGS_BATCH" + batch_number
+#batch_number = re.sub("^.*WGS","",dir_renamed)
+#print(batch_number)
+batch_name = "WGS"
+#if int(batch_number) < 10:
+#    batch_name0 = "WGS_BATCH" + batch_number
+#else:
+#    batch_name0 = "WGS_BATCH" + batch_number
 
 ## Set variables for rerunning all of the old pedigrees
-last_batch = str(int(batch_number) - 1)
-split_batch = str(int(batch_number) + 1)
-dir_peds = "/data/NCBR/projects/csi_test_batch/pedigrees_updated"
+#last_batch = str(int(batch_number) - 1)
+#split_batch = str(int(batch_number) + 1)
+#dir_peds = "/data/NCBR/projects/csi_test_batch/pedigrees_updated"
 todays_date = re.sub('-','',str(datetime.datetime.today()).split()[0])
 
 ##
@@ -49,14 +49,15 @@ todays_date = re.sub('-','',str(datetime.datetime.today()).split()[0])
 ##
 #print(listdir(os.getcwd()))
 df = pd.read_csv("masterkey.txt", header=0, sep='\t')
-df = df.loc[(df['Batch_Received'].isin([batch_name0, ""])) | (df['Batch_Received'].isnull())]
-dict_CIDR = dict(zip(df['Phenotips_ID'].tolist(), df['Exome_ID'].tolist()))
+#df = df.loc[(df['Batch_Received'].isin([batch_name0, ""])) | (df['Batch_Received'].isnull())]
+dict_CIDR = dict(zip(df['NewID'].tolist(), df['OldID'].tolist()))
 print(dict_CIDR)
 #exit
 
 configfile:"CSI_wes_pipeline/resources/processing_references_biowulf_hg38.json"
 
 chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chr20","chr21","chr22","chrX","chrY","chrM"]
+chunks = ['chr1:1-30000001','chr1:30000001-60000001','chr1:60000001-90000001','chr1:90000001-120000001','chr1:120000001-150000001','chr1:150000001-180000001','chr1:180000001-210000001','chr1:210000001-240000001','chr1:240000001-248956422','chr2:1-30000001','chr2:30000001-60000001','chr2:60000001-90000001','chr2:90000001-120000001','chr2:120000001-150000001','chr2:150000001-180000001','chr2:180000001-210000001','chr2:210000001-240000001','chr2:240000001-242193529','chr3:1-30000001','chr3:30000001-60000001','chr3:60000001-90000001','chr3:90000001-120000001','chr3:120000001-150000001','chr3:150000001-180000001','chr3:180000001-198295559','chr4:1-30000001','chr4:30000001-60000001','chr4:60000001-90000001','chr4:90000001-120000001','chr4:120000001-150000001','chr4:150000001-180000001','chr4:180000001-190214555','chr5:1-30000001','chr5:30000001-60000001','chr5:60000001-90000001','chr5:90000001-120000001','chr5:120000001-150000001','chr5:150000001-180000001','chr5:180000001-181538259','chr6:1-30000001','chr6:30000001-60000001','chr6:60000001-90000001','chr6:90000001-120000001','chr6:120000001-150000001','chr6:150000001-170805979','chr7:1-30000001','chr7:30000001-60000001','chr7:60000001-90000001','chr7:90000001-120000001','chr7:120000001-150000001','chr7:150000001-159345973','chr8:1-30000001','chr8:30000001-60000001','chr8:60000001-90000001','chr8:90000001-120000001','chr8:120000001-145138636','chr9:1-30000001','chr9:30000001-60000001','chr9:60000001-90000001','chr9:90000001-120000001','chr9:120000001-138394717','chr10:1-30000001','chr10:30000001-60000001','chr10:60000001-90000001','chr10:90000001-120000001','chr10:120000001-133797422','chr11:1-30000001','chr11:30000001-60000001','chr11:60000001-90000001','chr11:90000001-120000001','chr11:120000001-135086622','chr12:1-30000001','chr12:30000001-60000001','chr12:60000001-90000001','chr12:90000001-120000001','chr12:120000001-133275309','chr13:1-30000001','chr13:30000001-60000001','chr13:60000001-90000001','chr13:90000001-114364328','chr14:1-30000001','chr14:30000001-60000001','chr14:60000001-90000001','chr14:90000001-107043718','chr15:1-30000001','chr15:30000001-60000001','chr15:60000001-90000001','chr15:90000001-101991189','chr16:1-30000001','chr16:30000001-60000001','chr16:60000001-90000001','chr16:90000001-90338345','chr17:1-30000001','chr17:30000001-60000001','chr17:60000001-83257441','chr18:1-30000001','chr18:30000001-60000001','chr18:60000001-80373285','chr19:1-30000001','chr19:30000001-58617616','chr20:1-30000001','chr20:30000001-60000001','chr20:60000001-64444167','chr21:1-30000001','chr21:30000001-46709983','chr22:1-30000001','chr22:30000001-50818468','chrX:1-30000001','chrX:30000001-60000001','chrX:60000001-90000001','chrX:90000001-120000001','chrX:120000001-150000001','chrX:150000001-156040895','chrY:1-30000001','chrY:30000001-57227415','chrM:1-16569']
 
 ##
 ## Set rule all
@@ -74,9 +75,6 @@ rule all:
         multiqc=join("BATCH_QC/QC_Report.html"),
 #        bam = expand("BAM/{newID}.recal.bam", newID=list(dict_CIDR.keys())),
         vcf = "VCF/" + batch_name + ".vcf.gz",
-#        target = expand(join(dir_renamed, "QC", "TARGET", "{newID}.TARGET.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
-#        ucsc = expand(join(dir_renamed, "QC", "UCSC", "{newID}.UCSC.sample_{fname}.csv"), newID = list(dict_CIDR.keys()), fname=fnames),
-#        last_ped = join(dir_peds, todays_date, "seqr_ped_batch" + last_batch + ".txt"),
         hla = expand(join(dir_renamed, "HLA", "{newID}", "sample", "hla", "R1_bestguess_G.txt"), newID = list(dict_CIDR.keys())),
 #        concat_hla_cidr = join(dir_renamed, "hla_tab_cidr_batch" + batch_number + ".csv"),
 #        concat_hla_phenotips = join(dir_renamed, "hla_tab_phenotips_batch" + batch_number + ".csv"),
@@ -88,15 +86,14 @@ rule all:
         cnv=expand("CANVAS/{newID}/CNV.vcf.gz", newID=list(dict_CIDR.keys())),
 
 rule namesort:
-    input: bam = lambda w: [join(dir_rawdata, dict_CIDR[w.newID] + ".hgv.cram")],
+    input: bam = lambda w: [join(dir_rawdata, dict_CIDR[w.newID] + ".bam")],
     output: temp("fastqs/{newID}.namesort.bam"),
-    params: rname="bam2fastq",genome=config['references']['GENOME']
+    params: rname="bam2fastq"
     shell: """
-           
-           module load samtools/1.11
-           mkdir -p fastqs
-           samtools sort -n -@ 15 --reference {params.genome} -o {output} {input.bam}
-           """
+         module load samtools/1.11
+         mkdir -p fastqs
+         samtools sort -n -@ 15 -o {output} {input.bam}
+         """
 
 rule bam2fastq:
     input: bam = "fastqs/{newID}.namesort.bam",
@@ -139,7 +136,7 @@ rule bwa_mem:
 
 rule rehead:
      input:  newbam="BAM/{newID}.foo.bam",
-             oldbam=lambda w: [join(dir_rawdata, dict_CIDR[w.newID] + ".hgv.cram")],
+             oldbam=lambda w: [join(dir_rawdata, dict_CIDR[w.newID] + ".bam")],
      output: oldheader=temp("BAM/{newID}_oldheader.sam"),
              newheader=temp("BAM/{newID}_newheader.sam"),
              fixedheader=temp("BAM/{newID}_fixedheader.sam"),
@@ -254,8 +251,8 @@ rule samtools_flagstats:
            """
 
 rule vcftools:
-    input: "VCF/" + batch_name + ".vcf.gz",
-    output: join("BATCH_QC/", batch_name + ".het"),
+    input: "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
+    output: join("BATCH_QC/wgs_variants.het"),
     params: batch=batch_name,rname="vcftools"
     shell: """
            module load vcftools/0.1.16
@@ -263,7 +260,7 @@ rule vcftools:
            """
 
 rule collectvariantcallmetrics:
-    input: "VCF/" + batch_name + ".vcf.gz",
+    input: "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
     output: join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics")
     params: vcf=config['references']['DBSNP'],batch=batch_name,rname="varcallmetrics"
     shell: """
@@ -272,7 +269,7 @@ rule collectvariantcallmetrics:
            """
 
 rule Gatk_SelectVariants:
-	input: "VCF/" + batch_name + ".vcf.gz",
+	input: "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
 	output: temp(join("BATCH_QC/{newID}.vcf.gz"))
 	params: genome=config['references']['GENOME'], Sname = "{newID}", rname="varselect"
 	shell:"""
@@ -333,7 +330,7 @@ rule multiqc:
 ###
 rule admixture:
     input: 
-        vcf = "VCF/" + batch_name + ".vcf.gz",
+        vcf = "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
     output: 
         filtvcf = temp(join(dir_renamed, "BATCH_QC", "admixture", "filtered.recode.vcf")),
         mergedvcf = temp(join(dir_renamed, "BATCH_QC", "admixture", "merged.knowns.vcf")),
@@ -379,7 +376,7 @@ rule admixplot:
 ###
 rule inbreeding:
     input: 
-        vcf = "VCF/" + batch_name + ".vcf.gz",
+        vcf = "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
     output: 
         knownsvcf = temp(join(dir_renamed, "inbreeding", "known.sites.vcf")),
         filtvcf = temp(join(dir_renamed, "inbreeding", "filtered.known.sites.recode.vcf.gz")),
@@ -410,9 +407,6 @@ rule inbreeding:
            Rscript /data/GRIS_NCBR/resources/software/inbreedingPlot.R
            """
 
-chroms = ["chr1","chr2","chr3","chr4","chr5","chr6","chr7","chr8","chr9","chr10","chr11","chr12","chr13","chr14","chr15","chr16","chr17","chr18","chr19","chr20","chr21","chr22","chrX","chrY","chrM"]
-chunks = ['chr1:1-30000001','chr1:30000001-60000001','chr1:60000001-90000001','chr1:90000001-120000001','chr1:120000001-150000001','chr1:150000001-180000001','chr1:180000001-210000001','chr1:210000001-240000001','chr1:240000001-248956422','chr2:1-30000001','chr2:30000001-60000001','chr2:60000001-90000001','chr2:90000001-120000001','chr2:120000001-150000001','chr2:150000001-180000001','chr2:180000001-210000001','chr2:210000001-240000001','chr2:240000001-242193529','chr3:1-30000001','chr3:30000001-60000001','chr3:60000001-90000001','chr3:90000001-120000001','chr3:120000001-150000001','chr3:150000001-180000001','chr3:180000001-198295559','chr4:1-30000001','chr4:30000001-60000001','chr4:60000001-90000001','chr4:90000001-120000001','chr4:120000001-150000001','chr4:150000001-180000001','chr4:180000001-190214555','chr5:1-30000001','chr5:30000001-60000001','chr5:60000001-90000001','chr5:90000001-120000001','chr5:120000001-150000001','chr5:150000001-180000001','chr5:180000001-181538259','chr6:1-30000001','chr6:30000001-60000001','chr6:60000001-90000001','chr6:90000001-120000001','chr6:120000001-150000001','chr6:150000001-170805979','chr7:1-30000001','chr7:30000001-60000001','chr7:60000001-90000001','chr7:90000001-120000001','chr7:120000001-150000001','chr7:150000001-159345973','chr8:1-30000001','chr8:30000001-60000001','chr8:60000001-90000001','chr8:90000001-120000001','chr8:120000001-145138636','chr9:1-30000001','chr9:30000001-60000001','chr9:60000001-90000001','chr9:90000001-120000001','chr9:120000001-138394717','chr10:1-30000001','chr10:30000001-60000001','chr10:60000001-90000001','chr10:90000001-120000001','chr10:120000001-133797422','chr11:1-30000001','chr11:30000001-60000001','chr11:60000001-90000001','chr11:90000001-120000001','chr11:120000001-135086622','chr12:1-30000001','chr12:30000001-60000001','chr12:60000001-90000001','chr12:90000001-120000001','chr12:120000001-133275309','chr13:1-30000001','chr13:30000001-60000001','chr13:60000001-90000001','chr13:90000001-114364328','chr14:1-30000001','chr14:30000001-60000001','chr14:60000001-90000001','chr14:90000001-107043718','chr15:1-30000001','chr15:30000001-60000001','chr15:60000001-90000001','chr15:90000001-101991189','chr16:1-30000001','chr16:30000001-60000001','chr16:60000001-90000001','chr16:90000001-90338345','chr17:1-30000001','chr17:30000001-60000001','chr17:60000001-83257441','chr18:1-30000001','chr18:30000001-60000001','chr18:60000001-80373285','chr19:1-30000001','chr19:30000001-58617616','chr20:1-30000001','chr20:30000001-60000001','chr20:60000001-64444167','chr21:1-30000001','chr21:30000001-46709983','chr22:1-30000001','chr22:30000001-50818468','chrX:1-30000001','chrX:30000001-60000001','chrX:60000001-90000001','chrX:90000001-120000001','chrX:120000001-150000001','chrX:150000001-156040895','chrY:1-30000001','chrY:30000001-57227415','chrM:1-16569']
-
 rule haplotypecaller:
     input: 
         bam="BAM/{newID}.recal.bam",
@@ -442,44 +436,24 @@ rule listgvcfs:
         ls gVCFs/*.{params.chunk}.g.vcf.gz > {output.list}
         """
 
-if batch_number == "1":
-
-  rule mergegvcfs:
-      input: list = "gVCFs/gVCFs.{chunks}.list",
-             gzvcf = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz",newID=list(dict_CIDR.keys())),
-             index = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz.tbi",newID=list(dict_CIDR.keys())),
-      output:
-          gzvcf = "/data/GRIS_NCBR/hgsc_processed/wgs_gVCFs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz",
-      params: 
-          rname = "mergegvcfs",genome = config['references']['GENOME'], chunk="{chunks}", batch=batch_name
-      shell:
-          """
-          module load GATK/4.1.9.0
-          mkdir -p gVCFs/merged
-          gatk --java-options '-Xmx24g' CombineGVCFs --reference {params.genome} --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --variant {input.list} --output {output.gzvcf} --intervals {params.chunk} --use-jdk-inflater --use-jdk-deflater
-          """
-
-else:
-
-  rule mergegvcfs:
-      input: list = "gVCFs/gVCFs.{chunks}.list",
-             gzvcf = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz",newID=list(dict_CIDR.keys())),
-             index = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz.tbi",newID=list(dict_CIDR.keys())),
-             prev = "/data/GRIS_NCBR/hgsc_processed/wgs_gVCFs/cumulative/through_batch" + last_batch + "_{chunks}.g.vcf.gz"
-      output:
-          gzvcf = "/data/GRIS_NCBR/hgsc_processed/wgs_gVCFs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz",
-      params: 
-          rname = "mergegvcfs",genome = config['references']['GENOME'], chunk="{chunks}", batch=batch_name
-      shell:
-          """
-          module load GATK/4.1.9.0
-          mkdir -p gVCFs/merged
-          gatk --java-options '-Xmx24g' CombineGVCFs --reference {params.genome} --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --variant {input.list} --variant {input.prev} --output {output.gzvcf} --intervals {params.chunk} --use-jdk-inflater --use-jdk-deflater
-          """
+rule mergegvcfs:
+    input: list = "gVCFs/gVCFs.{chunks}.list",
+           gzvcf = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz",newID=list(dict_CIDR.keys())),
+           index = expand("gVCFs/{newID}.{{chunks}}.g.vcf.gz.tbi",newID=list(dict_CIDR.keys())),
+    output:
+        gzvcf = "gVCFs/merged/merged_{chunks}.g.vcf.gz",
+    params: 
+        rname = "mergegvcfs",genome = config['references']['GENOME'], chunk="{chunks}", batch=batch_name
+    shell:
+        """
+        module load GATK/4.1.9.0
+        mkdir -p gVCFs/merged
+        gatk --java-options '-Xmx24g' CombineGVCFs --reference {params.genome} --annotation-group StandardAnnotation --annotation-group AS_StandardAnnotation --variant {input.list} --output {output.gzvcf} --intervals {params.chunk} --use-jdk-inflater --use-jdk-deflater
+        """
 
 rule genotype:
     input: 
-        gzvcf = "/data/GRIS_NCBR/hgsc_processed/wgs_gVCFs/cumulative/through_batch" + batch_number + "_{chunks}.g.vcf.gz",
+        gzvcf = "gVCFs/merged/merged_{chunks}.g.vcf.gz",
     output:
         vcf = "VCF/by_chunk/raw_variants_{chunks}.vcf.gz",
     params:
@@ -584,28 +558,6 @@ rule gtype_refinement:
         tabix -p vcf {output.gtfix_vcf}
         """
 
-###
-### Subset VCF
-###
-###
-rule vcf:
-    input: 
-        vcf = "VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
-    output:
-        vcf = "VCF/" + batch_name + ".vcf.gz",
-        gtfix_vcf = "VCF/" + batch_name + ".GTfix.vcf.gz",
-    params:
-        rname = "VCF_rename",genome = config['references']['GENOME']
-    shell:
-        """
-        tail -n +2 masterkey.txt | cut -f2 > samples.args
-        module load GATK/4.1.9.0
-        gatk --java-options '-Xmx24g' SelectVariants --reference {params.genome} -V {input.vcf} -O {output.vcf} -sn samples.args --keep-original-ac --exclude-non-variants
-        module load bcftools
-        bcftools +setGT {output.vcf} -O z -o {output.gtfix_vcf} -- -t a -n u
-        tabix -p vcf {output.gtfix_vcf}
-        """
-
 ##
 ## Calculate HLA for all BAM files
 ##
@@ -696,7 +648,7 @@ rule smoove_paste:
 
 rule canvas_wgs_germ:
     input: bam="BAM/{newID}.recal.bam",
-           vcf="BATCH_QC/{newID}.vcf.gz",
+           vcf="VCF/snps_and_indels_recal_refinement_variants.vcf.gz",
     output: vcf="CANVAS/{newID}/CNV.vcf.gz",index="BAM/{newID}.recal.bam.bai",
     params: genome=config['references']['CANVASGENOME'],ploidy=config['references']['CANVASPLOIDY'],sample="{newID}",kmer=config['references']['CANVASKMER'],filter=config['references']['CANVASFILTER'],balleles=config['references']['CANVASBALLELES'],rname="canvas"
     shell: """
@@ -709,18 +661,3 @@ rule canvas_wgs_germ:
            module load Canvas/1.40
            Canvas.dll Germline-WGS -b {input.bam} -n {params.sample} -o CANVAS/{params.sample} -r {params.kmer} --ploidy-vcf=CANVAS/{params.sample}/ploidy.vcf -g {params.genome} -f {params.filter} --sample-b-allele-vcf={input.vcf}
            """
- 
-#rule cnvnator:
-#    input: 
-#        bam="BAM/{newID}.recal.bam",
-#    output:
-#        vcf = "smoove_out/{newID}/{newID}-smoove.cnvnator.vcf.gz",
-#    params: 
-#        sample = "{newID}",rname = "smoove", genome = config['references']['GENOME'], exclusions = config['references']['SMOOVEEXCLUSIONS']
-#    shell:
-#        """
-#        mkdir -p cnvnator
-#        mkdir -p cnvnator/{params.sample}
-#        module load smoove/0.2.5
-#        smoove cnvnator --outdir cnvnator/{params.sample} --name {params.sample} --fasta {params.genome} {input.bam}
-#        """
