@@ -67,14 +67,14 @@ rule all:
         fastqc=expand(join("BATCH_QC/FastQC/{newID}.recal_fastqc.html"),newID=list(dict_CIDR.keys())),
         flagstats=expand(join("BATCH_QC/Flagstats/{newID}.flagstats"),newID=list(dict_CIDR.keys())),
         qualimap=expand(join("BATCH_QC/{newID}", "qualimapReport.html"),newID=list(dict_CIDR.keys())),
-        vcftools = join("BATCH_QC/", batch_name + ".het"),
+        vcftools = join("BATCH_QC/wgs_variants.het"),
         collectvarintcallmetrics = join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics"),
         varianteval=expand(join("BATCH_QC/VariantEval/{newID}"),newID=list(dict_CIDR.keys())),
         snpeff= expand(join("BATCH_QC/SNPeff/{newID}/{newID}"),newID=list(dict_CIDR.keys())),
         bcftools=expand(join("BATCH_QC/BCFStats/{newID}"),newID=list(dict_CIDR.keys())),
         multiqc=join("BATCH_QC/QC_Report.html"),
 #        bam = expand("BAM/{newID}.recal.bam", newID=list(dict_CIDR.keys())),
-        vcf = "VCF/" + batch_name + ".vcf.gz",
+#        vcf = "VCF/" + batch_name + ".vcf.gz",
         hla = expand(join(dir_renamed, "HLA", "{newID}", "sample", "hla", "R1_bestguess_G.txt"), newID = list(dict_CIDR.keys())),
 #        concat_hla_cidr = join(dir_renamed, "hla_tab_cidr_batch" + batch_number + ".csv"),
 #        concat_hla_phenotips = join(dir_renamed, "hla_tab_phenotips_batch" + batch_number + ".csv"),
@@ -315,7 +315,7 @@ rule multiqc:
            expand(join("BATCH_QC/SNPeff/{newID}/{newID}"), newID=list(dict_CIDR.keys())),
            expand(join("BATCH_QC/BCFStats/{newID}"), newID=list(dict_CIDR.keys())),
            expand(join("BATCH_QC/{newID}","genome_results.txt"), newID=list(dict_CIDR.keys())),
-           join("BATCH_QC/", batch_name + ".het"),
+           join("BATCH_QC/wgs_variants.het"),
            join("BATCH_QC/", batch_name + ".variant_calling_detail_metrics"),
            join(dir_renamed, "BATCH_QC", "admixture", "admixture_mqc.png"),
     output: "BATCH_QC/QC_Report.html"
@@ -351,11 +351,11 @@ rule admixture:
            module purge
            module load plink/1.9.0-beta4.4
            plink --noweb --recode12 --snps-only --maf 0.05 --out BATCH_QC/admixture/merged.filtered.knowns --vcf {output.mergedvcf}
-           perl /data/NCBR/projects/csi_test_batch/resources/software/admixture_prep.pl /data/GRIS_NCBR/resources/1k_genomes_superpop_key.txt BATCH_QC/admixture/merged.filtered.knowns.pop BATCH_QC/admixture/merged.filtered.knowns.ped
+           perl CSI_wes_pipeline/scripts/admixture_prep.pl /data/GRIS_NCBR/resources/1k_genomes_superpop_key.txt BATCH_QC/admixture/merged.filtered.knowns.pop BATCH_QC/admixture/merged.filtered.knowns.ped
            /data/CCBR_Pipeliner/db/PipeDB/bin/admixture_linux-1.3.0/admixture BATCH_QC/admixture/merged.filtered.knowns.ped 5 --supervised -j4
            mv merged.filtered.knowns.5.P BATCH_QC/admixture/merged.filtered.knowns.5.P
            mv merged.filtered.knowns.5.Q BATCH_QC/admixture/merged.filtered.knowns.5.Q
-           perl /data/NCBR/projects/csi_test_batch/resources/software/admixture_post.pl /data/GRIS_NCBR/resources/1k_genomes_superpop_key.txt {output.admixtable} BATCH_QC/admixture/merged.filtered.knowns.5.Q hg19 BATCH_QC/admixture/merged.filtered.knowns.ped
+           perl CSI_wes_pipeline/scripts/admixture_post.pl /data/NCBR/references/human/hg38/1k_genomes_superpop_key.txt {output.admixtable} BATCH_QC/admixture/merged.filtered.knowns.5.Q hg19 BATCH_QC/admixture/merged.filtered.knowns.ped
            """
 
 ###
@@ -404,7 +404,7 @@ rule inbreeding:
            plink --file inbreeding/filtered.known.sites --noweb --homozyg --out inbreeding/ROH
            module purge
            module load R/3.6
-           Rscript /data/GRIS_NCBR/resources/software/inbreedingPlot.R
+           Rscript CSI_wes_pipeline/scripts/inbreedingPlot.R
            """
 
 rule haplotypecaller:
@@ -587,7 +587,7 @@ rule hla_concat:
         hladir = join(dir_renamed, "HLA")
     shell:
         """
-        python /data/GRIS_NCBR/resources/software/hla_table.py
+        python CSI_wes_pipeline/scripts/hla_table.py
         """
 
 rule smoove:
